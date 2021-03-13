@@ -116,7 +116,9 @@ class Config(object):
         if cfg_dict is None:
             cfg_dict = dict()
         elif not isinstance(cfg_dict, dict):
-            raise TypeError("cfg_dict must be a dict, but got {}".format(type(cfg_dict)))
+            raise TypeError(
+                "cfg_dict must be a dict, but got {}".format(type(cfg_dict))
+            )
 
         super(Config, self).__setattr__("_cfg_dict", ConfigDict(cfg_dict))
         super(Config, self).__setattr__("_filename", filename)

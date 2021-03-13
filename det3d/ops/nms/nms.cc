@@ -15,14 +15,4 @@ PYBIND11_MODULE(nms, m)
           "box_corners"_a = 1, "order"_a = 2, "standup_iou"_a = 3, "thresh"_a = 4);
     m.def("rotate_non_max_suppression_cpu", &rotate_non_max_suppression_cpu<double>, py::return_value_policy::reference_internal, "bbox iou", 
           "box_corners"_a = 1, "order"_a = 2, "standup_iou"_a = 3, "thresh"_a = 4);
-    //m.def("IOU_weighted_rotate_non_max_suppression_cpu", &IOU_weighted_rotate_non_max_suppression_cpu<float>, py::return_value_policy::reference_internal, "bbox iou",
-    //      "box"_a = 1, "box_corners"_a = 2,  "standup_iou"_a = 3, "thresh"_a = 4, "scores"_a = 5, "sigma"_a = 6, "labels"_a = 7, "dirs"_a = 8);
-    //m.def("IOU_weighted_rotate_non_max_suppression_cpu", &IOU_weighted_rotate_non_max_suppression_cpu<double>, py::return_value_policy::reference_internal, "bbox iou",
-    //      "box"_a = 1, "box_corners"_a = 2,  "standup_iou"_a =3, "thresh"_a = 4, "scores"_a = 5, "sigma"_a = 6, "labels"_a = 7, "dirs"_a = 8);
-    m.def("IOU_weighted_rotate_non_max_suppression_cpu", &IOU_weighted_rotate_non_max_suppression_cpu<float>, py::return_value_policy::reference_internal, "bbox iou",
-          "box"_a = 1, "box_corners"_a = 2,  "standup_iou"_a = 3, "thresh"_a = 4, "scores"_a = 5, "sigma"_a = 6, "labels"_a = 7,
-          "dirs"_a = 8, "anchors"_a=9);
-    m.def("IOU_weighted_rotate_non_max_suppression_cpu", &IOU_weighted_rotate_non_max_suppression_cpu<double>, py::return_value_policy::reference_internal, "bbox iou",
-          "box"_a = 1, "box_corners"_a = 2,  "standup_iou"_a =3, "thresh"_a = 4, "scores"_a = 5, "sigma"_a = 6, "labels"_a = 7,
-          "dirs"_a = 8, "anchors"_a=9);
 }

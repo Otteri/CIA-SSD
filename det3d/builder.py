@@ -14,7 +14,7 @@ from det3d.core.bbox import region_similarity
 from det3d.core.bbox.box_coders import BevBoxCoderTorch, GroundBox3dCoderTorch
 from det3d.core.input.voxel_generator import VoxelGenerator
 from det3d.core.sampler.preprocess import DataBasePreprocessor
-from det3d.core.sampler.sample_ops_v2 import DataBaseSamplerV2
+from det3d.core.sampler.sample_ops import DataBaseSamplerV2
 from det3d.models.losses import GHMCLoss, GHMRLoss, losses
 from det3d.solver import learning_schedules
 from det3d.solver import learning_schedules_fastai as lsf
@@ -110,14 +110,14 @@ def build_optimizer(optimizer_config, net, name=None, mixed=False, loss_scale=51
     optimizer_type = optimizer_config.TYPE
     config = optimizer_config.VALUE
 
-    if optimizer_type == "rms_prop_optimizer":
+    if optimizer_type == "rms_prop":
         optimizer_func = partial(
             torch.optim.RMSprop,
             alpha=config.decay,
             momentum=config.momentum_optimizer_value,
             eps=config.epsilon,
         )
-    elif optimizer_type == "momentum_optimizer":
+    elif optimizer_type == "momentum":
         optimizer_func = partial(
             torch.optim.SGD,
             momentum=config.momentum_optimizer_value,
@@ -136,7 +136,7 @@ def build_optimizer(optimizer_config, net, name=None, mixed=False, loss_scale=51
         optimizer_func,
         3e-3,
         get_layer_groups(net),
-        wd=config.WD,
+        wd=config.wd,
         true_wd=optimizer_config.FIXED_WD,
         bn_wd=True,
     )
@@ -172,11 +172,11 @@ def build_lr_scheduler(optimizer, optimizer_config, total_step):
     optimizer_type = optimizer_config.type
     config = optimizer_config
 
-    if optimizer_type == "rms_prop_optimizer":
+    if optimizer_type == "rms_prop":
         lr_scheduler = _create_learning_rate_scheduler(
             config, optimizer, total_step=total_step
         )
-    elif optimizer_type == "momentum_optimizer":
+    elif optimizer_type == "momentum":
         lr_scheduler = _create_learning_rate_scheduler(
             config, optimizer, total_step=total_step
         )
@@ -376,59 +376,50 @@ def _build_classification_loss(loss_config):
 
 
 def build_dbsampler(cfg, logger=None):
-
     logger = logging.getLogger("build_dbsampler")
-
     prepors = [build_db_preprocess(c, logger=logger) for c in cfg.db_prep_steps]
     db_prepor = DataBasePreprocessor(prepors)
-
-    rate = cfg.rate                                                 # 1.0
-    grot_range = list(cfg.global_random_rotation_range_per_object)  # [0, 0]
-    groups = cfg.sample_groups                                      # [dict(Car=15,),],
-    info_path = cfg.db_info_path                                    # object/dbinfos_train.pickle
-    gt_random_drop = cfg.gt_random_drop
-
-    gt_aug_with_context = cfg.gt_aug_with_context
-    if gt_aug_with_context > 0.0:
-        info_path = info_path[:-17] + "dbinfos_enlarged_train.pkl"
-
-    gt_aug_similar_type = cfg.gt_aug_similar_type
-
+    rate = cfg.rate
+    grot_range = cfg.global_random_rotation_range_per_object
+    groups = cfg.sample_groups
+    # groups = [dict(g.name_to_max_num) for g in groups]
+    info_path = cfg.db_info_path
     with open(info_path, "rb") as f:
         db_infos = pickle.load(f)
-
+    grot_range = list(grot_range)
     if len(grot_range) == 0:
         grot_range = None
-
-    sampler = DataBaseSamplerV2(db_infos, groups, db_prepor, rate, grot_range, logger=logger, gt_random_drop=gt_random_drop,\
-        gt_aug_with_context=gt_aug_with_context, gt_aug_similar_type=gt_aug_similar_type)
+    sampler = DataBaseSamplerV2(
+        db_infos, groups, db_prepor, rate, grot_range, logger=logger
+    )
 
     return sampler
 
 
 def build_box_coder(box_coder_config):
-    """
-    Create optimizer based on config.
-        Args:
-            optimizer_config: A Optimizer proto message.
-        Returns:
-            An optimizer and a list of variables for summary.
-        Raises:
-            ValueError: when using an unsupported input data type.
-    """
-    """box_coder = dict(type="ground_box3d_coder", n_dim=7, linear_dim=False, encode_angle_vector=False,)"""
+    """Create optimizer based on config.
 
-    box_coder_type = box_coder_config["type"]   # ground_box3d_coder
+    Args:
+        optimizer_config: A Optimizer proto message.
+
+    Returns:
+        An optimizer and a list of variables for summary.
+
+    Raises:
+        ValueError: when using an unsupported input data type.
+    """
+    box_coder_type = box_coder_config["type"]
     cfg = box_coder_config
+
     n_dim = cfg.get("n_dim", 9)
     norm_velo = cfg.get("norm_velo", False)
 
     if box_coder_type == "ground_box3d_coder":
         return GroundBox3dCoderTorch(
-            cfg["linear_dim"],            # False
-            cfg["encode_angle_vector"],   # False
-            n_dim=n_dim,                  # 9
-            norm_velo=norm_velo,          # False
+            cfg["linear_dim"],
+            cfg["encode_angle_vector"],
+            n_dim=n_dim,
+            norm_velo=norm_velo,
         )
     elif box_coder_type == "bev_box_coder":
         cfg = box_coder_config
@@ -457,7 +448,7 @@ def build_anchor_generator(anchor_config):
     ag_type = anchor_config.type
     config = anchor_config
 
-    if "velocities" not in config:   # True
+    if "velocities" not in config:
         velocities = None
     else:
         velocities = config.velocities
@@ -474,7 +465,7 @@ def build_anchor_generator(anchor_config):
             class_name=config.class_name,
         )
         return ag
-    elif ag_type == "anchor_generator_range":     # True
+    elif ag_type == "anchor_generator_range":
         ag = AnchorGeneratorRange(
             sizes=config.sizes,
             anchor_ranges=config.anchor_ranges,

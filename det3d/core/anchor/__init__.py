@@ -4,4 +4,4 @@ from .anchor_generator import (
     BevAnchorGeneratorRange,
 )
 from .target_assigner import TargetAssigner
-from .target_ops_v2 import create_target_np
+from .target_ops import create_target_np

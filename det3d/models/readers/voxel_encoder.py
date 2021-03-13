@@ -196,19 +196,19 @@ class VFEV3_ablation(nn.Module):
 
 @READERS.register_module
 class VoxelFeatureExtractorV3(nn.Module):
-    '''Interesting! Take the mean value of points in voxel as its feature'''
-    def __init__(self, num_input_features=4, norm_cfg=None, name="VoxelFeatureExtractorV3"):
+    def __init__(
+        self, num_input_features=4, norm_cfg=None, name="VoxelFeatureExtractorV3"
+    ):
         super(VoxelFeatureExtractorV3, self).__init__()
         self.name = name
         self.num_input_features = num_input_features
 
-    def forward(self, voxels, num_points_per_voxel, coors=None):
-        # features: [batch_size * num_voxels, num_points_in_voxel, num_input_features],
-        # num_points_per_voxel:  [batch_size * num_voxels, num_points].
-        # todo: maybe we should add some info about the voxel
-        points_mean = voxels[:, :, : self.num_input_features].sum(dim=1, keepdim=False) / num_points_per_voxel.type_as(voxels).view(-1, 1)
-        return points_mean.contiguous()
+    def forward(self, features, num_voxels, coors=None):
+        points_mean = features[:, :, : self.num_input_features].sum(
+            dim=1, keepdim=False
+        ) / num_voxels.type_as(features).view(-1, 1)
 
+        return points_mean.contiguous()
 
 
 @READERS.register_module

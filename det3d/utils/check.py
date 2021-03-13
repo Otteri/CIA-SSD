@@ -15,5 +15,3 @@ def shape_mergeable(x, expected_shape):
                     mergeable = False
                     break
     return mergeable
-global_rot_range=[0, 0]
-print(shape_mergeable(global_rot_range, [2]))

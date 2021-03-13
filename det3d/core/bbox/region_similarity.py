@@ -64,9 +64,7 @@ class RotateIouSimilarity(RegionSimilarityCalculator):
       boxlist2: BoxList holding M boxes.
 
     Returns:
-      A tensor with shape [N, M] representing pairwise iou scores.s
-
-    This rotate_bev_iou version is 1.7x faster than my boxes_iou_bev_cpu, while is about 9.25x slower than my boxes_iou_bev_gpu.
+      A tensor with shape [N, M] representing pairwise iou scores.
     """
 
         return box_np_ops.riou_cc(boxes1, boxes2)
@@ -77,9 +75,6 @@ class NearestIouSimilarity(RegionSimilarityCalculator):
 
   This class computes pairwise similarity between two BoxLists based on the
   negative squared distance metric.
-
-  This nearest_bev_iou version is 20x faster than my boxes_iou_bev_cpu, and about 4.1x faster than my boxes_iou_bev_gpu.
-  This is because my boxes_iou_bev is mainly for rotate_iou.
   """
 
     def _compare(self, boxes1, boxes2):

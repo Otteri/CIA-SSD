@@ -2,25 +2,34 @@ import numpy as np
 import pickle
 import os
 
-import warnings
-
 from copy import deepcopy
 
-from det3d.core.bbox import box_np_ops
+from det3d.core import box_np_ops
 from det3d.datasets.custom import PointCloudDataset
 from det3d.datasets.registry import DATASETS
 
-
-from det3d.datasets.kitti.kitti_common import *
-from det3d.datasets.kitti.eval import get_official_eval_result, get_coco_eval_result
+from .kitti_common import *
+from .eval import get_official_eval_result, get_coco_eval_result
 
 
 @DATASETS.register_module
 class KittiDataset(PointCloudDataset):
 
     NumPointFeatures = 4
-    def __init__(self, root_path, info_path, cfg=None, pipeline=None, class_names=None, test_mode=False, **kwargs):
-        super(KittiDataset, self).__init__(root_path, info_path, pipeline, test_mode=test_mode)
+
+    def __init__(
+        self,
+        root_path,
+        info_path,
+        cfg=None,
+        pipeline=None,
+        class_names=None,
+        test_mode=False,
+        **kwargs
+    ):
+        super(KittiDataset, self).__init__(
+            root_path, info_path, pipeline, test_mode=test_mode
+        )
         assert self._info_path is not None
         if not hasattr(self, "_kitti_infos"):
             with open(self._info_path, "rb") as f:
@@ -29,7 +38,7 @@ class KittiDataset(PointCloudDataset):
         self._num_point_features = __class__.NumPointFeatures
         # print("remain number of infos:", len(self._kitti_infos))
         self._class_names = class_names
-        self.plane_dir = root_path + "/training/planes"   # todo: check whether need it on val or test datasets
+        self.plane_dir = "/home/cosmo/data/KITTI_DATASET/training/planes" # originally: /data/Datasets/KITTI/training/planes
 
     def __len__(self):
         if not hasattr(self, "_kitti_infos"):
@@ -66,16 +75,15 @@ class KittiDataset(PointCloudDataset):
 
         return gt_annos
 
-    def convert_detection_to_kitti_annos(self, detection, partial=False):
+    def convert_detection_to_kitti_annos(self, detection):
         class_names = self._class_names
         det_image_idxes = [k for k in detection.keys()]
         gt_image_idxes = [str(info["image"]["image_idx"]) for info in self._kitti_infos]
-        image_idxes = [gt_image_idxes, det_image_idxes]
         # print(f"det_image_idxes: {det_image_idxes[:10]}")
         # print(f"gt_image_idxes: {gt_image_idxes[:10]}")
         annos = []
         # for i in range(len(detection)):
-        for det_idx in image_idxes[int(partial==True)]:
+        for det_idx in gt_image_idxes:
             det = detection[det_idx]
             info = self._kitti_infos[gt_image_idxes.index(det_idx)]
             # info = self._kitti_infos[i]
@@ -91,14 +99,24 @@ class KittiDataset(PointCloudDataset):
             num_example = 0
 
             if final_box_preds.shape[0] != 0:
-                final_box_preds[:, -1] = box_np_ops.limit_period(final_box_preds[:, -1], offset=0.5, period=np.pi * 2,)
+                final_box_preds[:, -1] = box_np_ops.limit_period(
+                    final_box_preds[:, -1], offset=0.5, period=np.pi * 2,
+                )
                 final_box_preds[:, 2] -= final_box_preds[:, 5] / 2
 
                 # aim: x, y, z, w, l, h, r -> -y, -z, x, h, w, l, r
                 # (x, y, z, w, l, h r) in lidar -> (x', y', z', l, h, w, r) in camera
-                box3d_camera = box_np_ops.box_lidar_to_camera(final_box_preds, rect, Trv2c)
+                box3d_camera = box_np_ops.box_lidar_to_camera(
+                    final_box_preds, rect, Trv2c
+                )
                 camera_box_origin = [0.5, 1.0, 0.5]
-                box_corners = box_np_ops.center_to_corner_box3d(box3d_camera[:, :3], box3d_camera[:, 3:6], box3d_camera[:, 6], camera_box_origin, axis=1,)
+                box_corners = box_np_ops.center_to_corner_box3d(
+                    box3d_camera[:, :3],
+                    box3d_camera[:, 3:6],
+                    box3d_camera[:, 6],
+                    camera_box_origin,
+                    axis=1,
+                )
                 box_corners_in_image = box_np_ops.project_to_image(box_corners, P2)
                 # box_corners_in_image: [N, 8, 2]
                 minxy = np.min(box_corners_in_image, axis=1)
@@ -115,7 +133,10 @@ class KittiDataset(PointCloudDataset):
                     bbox[j, :2] = np.maximum(bbox[j, :2], [0, 0])
                     anno["bbox"].append(bbox[j])
 
-                    anno["alpha"].append(-np.arctan2(-final_box_preds[j, 1], final_box_preds[j, 0]) + box3d_camera[j, 6])
+                    anno["alpha"].append(
+                        -np.arctan2(-final_box_preds[j, 1], final_box_preds[j, 0])
+                        + box3d_camera[j, 6]
+                    )
                     # anno["dimensions"].append(box3d_camera[j, [4, 5, 3]])
                     anno["dimensions"].append(box3d_camera[j, 3:6])
                     anno["location"].append(box3d_camera[j, :3])
@@ -138,6 +159,7 @@ class KittiDataset(PointCloudDataset):
 
     def evaluation(self, detections, output_dir=None):
         """
+        detection
         When you want to eval your own dataset, you MUST set correct
         the z axis and box z center.
         """
@@ -149,26 +171,32 @@ class KittiDataset(PointCloudDataset):
         z_center = 1.0  # KITTI camera box's center is [0.5, 1, 0.5]
         # for regular raw lidar data, z_axis = 2, z_center = 0.5.
 
-        result_official_dict = get_official_eval_result(gt_annos, dt_annos, self._class_names, z_axis=z_axis, z_center=z_center)
-        #result_coco_dict = get_coco_eval_result(gt_annos, dt_annos, self._class_names, z_axis=z_axis, z_center=z_center)
+        result_official_dict = get_official_eval_result(
+            gt_annos, dt_annos, self._class_names, z_axis=z_axis, z_center=z_center
+        )
+        result_coco_dict = get_coco_eval_result(
+            gt_annos, dt_annos, self._class_names, z_axis=z_axis, z_center=z_center
+        )
 
-        results = {"results": {"official": result_official_dict["result"]},
-                               #"coco": result_coco_dict["result"],},
-                   "detail": {"eval.kitti": {
-                                   "official": result_official_dict["detail"]}},}
-                                   #"coco": result_coco_dict["detail"],}},}
+        results = {
+            "results": {
+                "official": result_official_dict["result"],
+                "coco": result_coco_dict["result"],
+            },
+            "detail": {
+                "eval.kitti": {
+                    "official": result_official_dict["detail"],
+                    "coco": result_coco_dict["detail"],
+                }
+            },
+        }
+
         return results, dt_annos
 
     def __getitem__(self, idx):
         return self.get_sensor_data(idx, with_gp=True)
 
-    def get_sensor_data(self, idx, with_image=False, with_gp=False, by_index=False):
-        # NOTICE: only for debug, eg. idx=000009, switch off in training/test.
-        if by_index:
-            indices = []
-            for info in self._kitti_infos:
-                indices.append(int(info['image']['image_idx']))
-            idx = indices.index(idx)
+    def get_sensor_data(self, idx, with_image=False, with_gp=False):
 
         info = self._kitti_infos[idx]
 
@@ -176,14 +204,10 @@ class KittiDataset(PointCloudDataset):
             gp = self.get_road_plane(idx)
 
         res = {
-            "type": "KittiDataset",
             "lidar": {
                 "type": "lidar",
                 "points": None,
                 "ground_plane": -gp[-1] if with_gp else None,
-                "annotations": None,  # include centered gt_boxes and gt_names
-                "names": None,        # 'Car'
-                "targets": None,      # include cls_labels & reg_targets
             },
             "metadata": {
                 "image_prefix": self._root_path,
@@ -192,10 +216,8 @@ class KittiDataset(PointCloudDataset):
                 "image_shape": info["image"]["image_shape"],
                 "token": str(info["image"]["image_idx"]),
             },
-            "calib": None,            # R0_rect, Tr_velo_to_cam, P2
-            "cam": {
-                "annotations": None,  # include 2d bbox and gt_names
-            },
+            "calib": None,
+            "cam": {},
             "mode": "val" if self.test_mode else "train",
         }
 
@@ -206,6 +228,7 @@ class KittiDataset(PointCloudDataset):
 
         image_info = info["image"]
         image_path = image_info["image_path"]
+
         if with_image:
             image_path = self._root_path / image_path
             with open(str(image_path), "rb") as f:
@@ -217,19 +240,3 @@ class KittiDataset(PointCloudDataset):
             }
 
         return data
-
-
-# todo: for debug
-
-if __name__ == "__main__":
-    warnings.filterwarnings('ignore')
-    data_path = "/mnt/proj50/zhengwu/KITTI/object"
-    info_path = "/mnt/proj50/zhengwu/KITTI/object/kitti_infos_train.pkl"
-
-    from det3d.torchie import Config
-    cfg = Config.fromfile("../../../examples/second/configs/config.py")
-    pipeline = cfg.train_pipeline
-    kitti = KittiDataset(data_path, info_path, pipeline=pipeline)
-    data = kitti.get_sensor_data(99, by_index=True)
-    import ipdb; ipdb.set_trace()
-

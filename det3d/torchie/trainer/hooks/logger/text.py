@@ -17,11 +17,15 @@ class TextLoggerHook(LoggerHook):
     def before_run(self, trainer):
         super(TextLoggerHook, self).before_run(trainer)
         self.start_iter = trainer.iter
-        self.json_log_path = osp.join(trainer.work_dir, "{}.log.json".format(trainer.timestamp))
+        self.json_log_path = osp.join(
+            trainer.work_dir, "{}.log.json".format(trainer.timestamp)
+        )
 
     def _get_max_memory(self, trainer):
         mem = torch.cuda.max_memory_allocated()
-        mem_mb = torch.tensor([mem / (1024 * 1024)], dtype=torch.int, device=torch.device("cuda"))
+        mem_mb = torch.tensor(
+            [mem / (1024 * 1024)], dtype=torch.int, device=torch.device("cuda")
+        )
         if trainer.world_size > 1:
             dist.reduce(mem_mb, 0, op=dist.ReduceOp.MAX)
         return mem_mb.item()
@@ -74,7 +78,19 @@ class TextLoggerHook(LoggerHook):
             log_str = ""
             for name, val in log_dict.items():
                 # TODO:
-                if name in ["mode", "Epoch", "iter", "lr", "time", "data_time", "memory", "epoch", "transfer_time", "forward_time", "loss_parse_time",]:
+                if name in [
+                    "mode",
+                    "Epoch",
+                    "iter",
+                    "lr",
+                    "time",
+                    "data_time",
+                    "memory",
+                    "epoch",
+                    "transfer_time",
+                    "forward_time",
+                    "loss_parse_time",
+                ]:
                     continue
 
                 if isinstance(val, float):
@@ -119,14 +135,12 @@ class TextLoggerHook(LoggerHook):
         log_dict["iter"] = trainer.inner_iter + 1
         # Only record lr of the first param group
         log_dict["lr"] = trainer.current_lr()[0]
-
         if mode == "train":
             log_dict["time"] = trainer.log_buffer.output["time"]
             log_dict["data_time"] = trainer.log_buffer.output["data_time"]
             # statistic memory
             if torch.cuda.is_available():
                 log_dict["memory"] = self._get_max_memory(trainer)
-
         for name, val in trainer.log_buffer.output.items():
             if name in ["time", "data_time"]:
                 continue

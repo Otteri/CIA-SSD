@@ -8,12 +8,12 @@ import pycocotools.mask as maskUtils
 from pathlib import Path
 from copy import deepcopy
 from det3d import torchie
-from det3d.core.bbox import box_np_ops
+from det3d.core import box_np_ops
 from det3d.datasets.kitti import kitti_common as kitti
 
 from ..registry import PIPELINES
 
-'''
+
 def read_file(path, tries=2, num_point_feature=4):
     points = None
     try_cnt = 0
@@ -49,6 +49,7 @@ def read_sweep(sweep):
     #                            dtype=np.float32).reshape([-1,
     #                                                       5])[:, :4].T
     points_sweep = read_file(str(sweep["lidar_path"])).T
+    points_sweep = remove_close(points_sweep, min_distance) # remove in its local coordinate 
 
     nbr_points = points_sweep.shape[1]
     if sweep["transform_matrix"] is not None:
@@ -56,37 +57,104 @@ def read_sweep(sweep):
             np.vstack((points_sweep[:3, :], np.ones(nbr_points)))
         )[:3, :]
     # points_sweep[3, :] /= 255
-    points_sweep = remove_close(points_sweep, min_distance)
+    
     curr_times = sweep["time_lag"] * np.ones((1, points_sweep.shape[1]))
 
     return points_sweep.T, curr_times.T
-'''
+
 
 @PIPELINES.register_module
 class LoadPointCloudFromFile(object):
-    '''Loading points (x, y, z, r in velo coord) from pre-reduced .bin file'''
     def __init__(self, dataset="KittiDataset", **kwargs):
         self.type = dataset
         self.random_select = kwargs.get("random_select", False)
         self.npoints = kwargs.get("npoints", 16834)
 
     def __call__(self, res, info):
-        # set datatype "KittiDataset"
+
         res["type"] = self.type
 
         if self.type == "KittiDataset":
-            # get reduced points .bin file path
+
             pc_info = info["point_cloud"]
             velo_path = Path(pc_info["velodyne_path"])
             if not velo_path.is_absolute():
-                velo_path = (Path(res["metadata"]["image_prefix"]) / pc_info["velodyne_path"])
-
-            velo_reduced_path = (velo_path.parent.parent/ (velo_path.parent.stem + "_reduced") / velo_path.name)
+                velo_path = (
+                    Path(res["metadata"]["image_prefix"]) / pc_info["velodyne_path"]
+                )
+            velo_reduced_path = (
+                velo_path.parent.parent
+                / (velo_path.parent.stem + "_reduced")
+                / velo_path.name
+            )
             if velo_reduced_path.exists():
                 velo_path = velo_reduced_path
+            points = np.fromfile(str(velo_path), dtype=np.float32, count=-1).reshape(
+                [-1, res["metadata"]["num_point_features"]]
+            )
 
-            # load points: loaded points are in the image range
-            points = np.fromfile(str(velo_path), dtype=np.float32, count=-1).reshape([-1, res["metadata"]["num_point_features"]])
+            res["lidar"]["points"] = points
+
+        elif self.type == "NuScenesDataset":
+
+            nsweeps = res["lidar"]["nsweeps"]
+
+            lidar_path = Path(info["lidar_path"])
+            points = read_file(str(lidar_path))
+
+            # points[:, 3] /= 255
+            sweep_points_list = [points]
+            sweep_times_list = [np.zeros((points.shape[0], 1))]
+
+            assert (nsweeps - 1) <= len(
+                info["sweeps"]
+            ), "nsweeps {} should not greater than list length {}.".format(
+                nsweeps, len(info["sweeps"])
+            )
+
+            for i in np.random.choice(len(info["sweeps"]), nsweeps - 1, replace=False):
+                sweep = info["sweeps"][i]
+                points_sweep, times_sweep = read_sweep(sweep)
+                sweep_points_list.append(points_sweep)
+                sweep_times_list.append(times_sweep)
+
+            points = np.concatenate(sweep_points_list, axis=0)
+            times = np.concatenate(sweep_times_list, axis=0).astype(points.dtype)
+
+            res["lidar"]["points"] = points
+            res["lidar"]["times"] = times
+            res["lidar"]["combined"] = np.hstack([points, times])
+
+        elif self.type == "LyftDataset":
+
+            top_info = info["ref_info"]["LIDAR_TOP"]
+            points = read_file(top_info["lidar_path"])
+
+            # if "LIDAR_FRONT_LEFT" in info["ref_info"] and \
+            #         "LIDAR_FRONT_RIGHT" in info["ref_info"]:
+            #
+            #     def lr2top(lr_info):
+            #         lr_point = read_file(lr_info["lidar_path"],
+            #                              num_point_features=3)
+            #         lr_point_xyz = lr_point[:, :3]
+            #         lr_point_f = lr_point[:, 3:]
+            #         trans = reduce(
+            #             np.dot,
+            #             [top_info['ref_from_car'], lr_info['ref_to_car']])
+            #         lrpoints = trans.dot(
+            #             np.vstack(
+            #                 (lr_point_xyz.T, np.ones(lr_point.shape[0])))).T
+            #         lrpoints = np.hstack((lrpoints[:, :3], lr_point_f))
+            #         return lrpoints
+            #
+            #     left_info = info['ref_info']['LIDAR_FRONT_LEFT']
+            #     right_info = info['ref_info']['LIDAR_FRONT_RIGHT']
+            #
+            #     left_point = lr2top(left_info)
+            #     right_point = lr2top(right_info)
+            #     points = np.concatenate((points, left_point, right_point),
+            #                             axis=0).astype(np.float32)
+
             res["lidar"]["points"] = points
 
         else:
@@ -97,10 +165,7 @@ class LoadPointCloudFromFile(object):
 
 @PIPELINES.register_module
 class LoadPointCloudAnnotations(object):
-    '''Loading gt_boxes and calib configs, remove dontcare objects;
-       transform gt_boxes (xyz: cam -> velo; l,h,w -> w, l, h) and moved to the real center'''
     def __init__(self, with_bbox=True, **kwargs):
-        self.enable_difficulty_level = kwargs.get("enable_difficulty_level", False)
         pass
 
     def __call__(self, res, info):
@@ -113,41 +178,46 @@ class LoadPointCloudAnnotations(object):
                 "tokens": info["gt_boxes_token"],
                 "velocities": info["gt_boxes_velocity"].astype(np.float32),
             }
-        # True
+
         elif res["type"] == "KittiDataset":
-            # only select useful calib matrix
+
             calib = info["calib"]
             calib_dict = {
                 "rect": calib["R0_rect"],
                 "Trv2c": calib["Tr_velo_to_cam"],
                 "P2": calib["P2"],
-                "frustum": box_np_ops.get_valid_frustum(calib["R0_rect"], calib["Tr_velo_to_cam"], calib["P2"], info["image"]["image_shape"]),
             }
             res["calib"] = calib_dict
-
             if "annos" in info:
-
                 annos = info["annos"]
-                # annos = kitti.remove_dontcare_v2(annos)  # todo: try my remove_dontcare_v2 later
+                # we need other objects to avoid collision when sample
                 annos = kitti.remove_dontcare(annos)
-                locs = annos["location"]   # x, y, z (cam)
-                dims = annos["dimensions"] # l, h, w
-                rots = annos["rotation_y"] # ry in label file, count from x-axis (0 degree), clockwise is postive,
-                                           # anti-clockwise is negative.
+                locs = annos["location"]
+                dims = annos["dimensions"]
+                rots = annos["rotation_y"]
                 gt_names = annos["name"]
-                gt_boxes = np.concatenate([locs, dims, rots[..., np.newaxis]], axis=1).astype(np.float32)
+                gt_boxes = np.concatenate(
+                    [locs, dims, rots[..., np.newaxis]], axis=1
+                ).astype(np.float32)
                 calib = info["calib"]
+                gt_boxes = box_np_ops.box_camera_to_lidar(
+                    gt_boxes, calib["R0_rect"], calib["Tr_velo_to_cam"]
+                )
 
-                # x,y,z(cam), l, h, w, ry -> x,y,z(velo), w, l, h, ry
-                gt_boxes = box_np_ops.box_camera_to_lidar(gt_boxes, calib["R0_rect"], calib["Tr_velo_to_cam"])
-                # real center of gt_boxes_velo: z_value + h/2
-                box_np_ops.change_box3d_center_(gt_boxes, [0.5, 0.5, 0], [0.5, 0.5, 0.5])
+                # only center format is allowed. so we need to convert
+                # kitti [0.5, 0.5, 0] center to [0.5, 0.5, 0.5]
+                box_np_ops.change_box3d_center_(
+                    gt_boxes, [0.5, 0.5, 0], [0.5, 0.5, 0.5]
+                )
 
-                res["lidar"]["annotations"] = {"boxes": gt_boxes, "names": gt_names,}    # without difficulty here
-                if self.enable_difficulty_level:
-                    res["lidar"]["annotations"].update({"difficulty": annos["difficulty"]})
-
-                res["cam"]["annotations"] = {"boxes": annos["bbox"],"names": gt_names,}  # image 2d bbox
+                res["lidar"]["annotations"] = {
+                    "boxes": gt_boxes,
+                    "names": gt_names,
+                }
+                res["cam"]["annotations"] = {
+                    "boxes": annos["bbox"],
+                    "names": gt_names,
+                }
         else:
             return NotImplementedError
 

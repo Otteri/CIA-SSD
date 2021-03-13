@@ -8,7 +8,7 @@ from det3d.datasets.kitti import kitti_common as kitti_ds
 from det3d.datasets.utils.create_gt_database import create_groundtruth_database
 from det3d.torchie import Config
 
-cfg = Config.fromfile("../examples/second/configs/kitti_car_vfev3_spmiddlefhd_rpn1_mghead_syncbn.py")
+cfg = Config.fromfile("/home/cosmo/code/cia-ssd/CIA-SSD/examples/second/configs/kitti_car_vfev3_spmiddlefhd_rpn1_mghead_syncbn.py")
 
 def kitti_data_prep(root_path):
     # compress info of image(path), velodyne(path), label (all info but dc removed),
@@ -92,4 +92,4 @@ def lyft_data_prep(root_path, version="trainval"):
 
 if __name__ == "__main__":
     #fire.Fire()
-    kitti_data_prep("/data/zhengwu/KITTI/object")
+    kitti_data_prep("/home/cosmo/data/KITTI_DATASET")

@@ -8,7 +8,7 @@ from pathlib import Path
 from skimage import io
 from tqdm import tqdm
 
-from det3d.core.bbox import box_np_ops
+from det3d.core import box_np_ops
 
 
 def convert_to_kitti_info_version2(info):
@@ -59,8 +59,9 @@ def _read_imageset_file(path):
     return [int(line) for line in lines]
 
 
-def _calculate_num_points_in_gt(data_path, infos, relative_path, remove_outside=True, num_features=4):
-
+def _calculate_num_points_in_gt(
+    data_path, infos, relative_path, remove_outside=True, num_features=4
+):
     for info in infos:
         pc_info = info["point_cloud"]
         image_info = info["image"]
@@ -69,12 +70,16 @@ def _calculate_num_points_in_gt(data_path, infos, relative_path, remove_outside=
             v_path = str(Path(data_path) / pc_info["velodyne_path"])
         else:
             v_path = pc_info["velodyne_path"]
-        points_v = np.fromfile(v_path, dtype=np.float32, count=-1).reshape([-1, num_features])
+        points_v = np.fromfile(v_path, dtype=np.float32, count=-1).reshape(
+            [-1, num_features]
+        )
         rect = calib["R0_rect"]
         Trv2c = calib["Tr_velo_to_cam"]
         P2 = calib["P2"]
         if remove_outside:
-            points_v = box_np_ops.remove_outside_points(points_v, rect, Trv2c, P2, image_info["image_shape"])
+            points_v = box_np_ops.remove_outside_points(
+                points_v, rect, Trv2c, P2, image_info["image_shape"]
+            )
 
         # points_v = points_v[points_v[:, 0] > 0]
         annos = info["annos"]
@@ -104,11 +109,9 @@ def create_kitti_info_file(data_path, save_path=None, relative_path=True):
     else:
         save_path = Path(save_path)
 
-    # get kitti_infos_train and dump it into the file
     kitti_infos_train = get_kitti_image_info(
         data_path,
         training=True,
-        label_info=True,
         velodyne=True,
         calib=True,
         image_ids=train_img_ids,
@@ -119,10 +122,8 @@ def create_kitti_info_file(data_path, save_path=None, relative_path=True):
     print(f"Kitti info train file is saved to {filename}")
     with open(filename, "wb") as f:
         pickle.dump(kitti_infos_train, f)
-
     kitti_infos_val = get_kitti_image_info(data_path,
                                            training=True,
-                                           label_info=True,
                                            velodyne=True,
                                            calib=True,
                                            image_ids=val_img_ids,
@@ -132,12 +133,10 @@ def create_kitti_info_file(data_path, save_path=None, relative_path=True):
     print(f"Kitti info val file is saved to {filename}")
     with open(filename, 'wb') as f:
         pickle.dump(kitti_infos_val, f)
-
     filename = save_path / 'kitti_infos_trainval.pkl'
     print(f"Kitti info trainval file is saved to {filename}")
     with open(filename, 'wb') as f:
         pickle.dump(kitti_infos_train + kitti_infos_val, f)
-
     kitti_infos_test = get_kitti_image_info(data_path,
                                                   training=False,
                                                   label_info=False,
@@ -171,10 +170,14 @@ def _create_reduced_point_cloud(data_path, info_path, save_path=None, back=False
         # then remove outside.
         if back:
             points_v[:, 0] = -points_v[:, 0]
-        points_v = box_np_ops.remove_outside_points(points_v, rect, Trv2c, P2, image_info["image_shape"])
-
+        points_v = box_np_ops.remove_outside_points(
+            points_v, rect, Trv2c, P2, image_info["image_shape"]
+        )
         if save_path is None:
-            save_filename = (v_path.parent.parent / (v_path.parent.stem + "_reduced") / v_path.name)
+            save_filename = (
+                v_path.parent.parent / (v_path.parent.stem + "_reduced") / v_path.name
+            )
+            # save_filename = str(v_path) + '_reduced'
             if back:
                 save_filename += "_back"
         else:
@@ -373,50 +376,89 @@ def get_kitti_image_info(
     relative_path=True,
     with_imageshape=True,
 ):
+    # image_infos = []
+    """
+    KITTI annotation format version 2:
+    {
+        [optional]points: [N, 3+] point cloud
+        [optional, for kitti]image: {
+            image_idx: ...
+            image_path: ...
+            image_shape: ...
+        }
+        point_cloud: {
+            num_features: 4
+            velodyne_path: ...
+        }
+        [optional, for kitti]calib: {
+            R0_rect: ...
+            Tr_velo_to_cam: ...
+            P2: ...
+        }
+        annos: {
+            location: [num_gt, 3] array
+            dimensions: [num_gt, 3] array
+            rotation_y: [num_gt] angle array
+            name: [num_gt] ground truth name array
+            [optional]difficulty: kitti difficulty
+            [optional]group_ids: used for multi-part object
+        }
+    }
+    """
     root_path = pathlib.Path(path)
     if not isinstance(image_ids, list):
         image_ids = list(range(image_ids))
 
     def map_func(idx):
         info = {}
-
-        pc_info = {"num_features": 4}  # kitti: xyz + intensity
-        image_info = {"image_idx": idx}
-        annotations = None
+        pc_info = {"num_features": 4}
         calib_info = {}
 
+        image_info = {"image_idx": idx}
+        annotations = None
         if velodyne:
-            pc_info["velodyne_path"] = get_velodyne_path(idx, path, training, relative_path)
+            pc_info["velodyne_path"] = get_velodyne_path(
+                idx, path, training, relative_path
+            )
         image_info["image_path"] = get_image_path(idx, path, training, relative_path)
-
         if with_imageshape:
             img_path = image_info["image_path"]
             if relative_path:
                 img_path = str(root_path / img_path)
-            image_info["image_shape"] = np.array(io.imread(img_path).shape[:2], dtype=np.int32)
-
+            image_info["image_shape"] = np.array(
+                io.imread(img_path).shape[:2], dtype=np.int32
+            )
         if label_info:
             label_path = get_label_path(idx, path, training, relative_path)
             if relative_path:
                 label_path = str(root_path / label_path)
-            annotations = get_label_anno(label_path)  # "DontCare" has not been removed here
-
-        info["image"] = image_info  # image_idx(id), image_path, image_shape,
-        info["point_cloud"] = pc_info  # num_features, velodyne_path
+            annotations = get_label_anno(label_path)
+        info["image"] = image_info
+        info["point_cloud"] = pc_info
         if calib:
             calib_path = get_calib_path(idx, path, training, relative_path=False)
             with open(calib_path, "r") as f:
                 lines = f.readlines()
-            P0 = np.array([float(info) for info in lines[0].split(" ")[1:13]]).reshape([3, 4])
-            P1 = np.array([float(info) for info in lines[1].split(" ")[1:13]]).reshape([3, 4])
-            P2 = np.array([float(info) for info in lines[2].split(" ")[1:13]]).reshape([3, 4])
-            P3 = np.array([float(info) for info in lines[3].split(" ")[1:13]]).reshape([3, 4])
+            P0 = np.array([float(info) for info in lines[0].split(" ")[1:13]]).reshape(
+                [3, 4]
+            )
+            P1 = np.array([float(info) for info in lines[1].split(" ")[1:13]]).reshape(
+                [3, 4]
+            )
+            P2 = np.array([float(info) for info in lines[2].split(" ")[1:13]]).reshape(
+                [3, 4]
+            )
+            P3 = np.array([float(info) for info in lines[3].split(" ")[1:13]]).reshape(
+                [3, 4]
+            )
             if extend_matrix:
                 P0 = _extend_matrix(P0)
                 P1 = _extend_matrix(P1)
                 P2 = _extend_matrix(P2)
                 P3 = _extend_matrix(P3)
-            R0_rect = np.array([float(info) for info in lines[4].split(" ")[1:10]]).reshape([3, 3])
+            R0_rect = np.array(
+                [float(info) for info in lines[4].split(" ")[1:10]]
+            ).reshape([3, 3])
             if extend_matrix:
                 rect_4x4 = np.zeros([4, 4], dtype=R0_rect.dtype)
                 rect_4x4[3, 3] = 1.0
@@ -424,8 +466,12 @@ def get_kitti_image_info(
             else:
                 rect_4x4 = R0_rect
 
-            Tr_velo_to_cam = np.array([float(info) for info in lines[5].split(" ")[1:13]]).reshape([3, 4])
-            Tr_imu_to_velo = np.array([float(info) for info in lines[6].split(" ")[1:13]]).reshape([3, 4])
+            Tr_velo_to_cam = np.array(
+                [float(info) for info in lines[5].split(" ")[1:13]]
+            ).reshape([3, 4])
+            Tr_imu_to_velo = np.array(
+                [float(info) for info in lines[6].split(" ")[1:13]]
+            ).reshape([3, 4])
             if extend_matrix:
                 Tr_velo_to_cam = _extend_matrix(Tr_velo_to_cam)
                 Tr_imu_to_velo = _extend_matrix(Tr_imu_to_velo)
@@ -436,11 +482,11 @@ def get_kitti_image_info(
             calib_info["R0_rect"] = rect_4x4
             calib_info["Tr_velo_to_cam"] = Tr_velo_to_cam
             calib_info["Tr_imu_to_velo"] = Tr_imu_to_velo
-            info["calib"] = calib_info  # all matrix in calib
+            info["calib"] = calib_info
 
         if annotations is not None:
-            info["annos"] = annotations    # all gt info in label file
-            add_difficulty_to_annos(info)  # info['diff']: including difficulty level
+            info["annos"] = annotations
+            add_difficulty_to_annos(info)
         return info
 
     image_infos = []
@@ -505,20 +551,12 @@ def filter_infos_by_used_classes(infos, used_classes):
 
 def remove_dontcare(image_anno):
     img_filtered_annotations = {}
-    relevant_annotation_indices = [i for i, x in enumerate(image_anno["name"]) if x != "DontCare"]
+    relevant_annotation_indices = [
+        i for i, x in enumerate(image_anno["name"]) if x != "DontCare"
+    ]
     for key in image_anno.keys():
         img_filtered_annotations[key] = image_anno[key][relevant_annotation_indices]
     return img_filtered_annotations
-
-
-# re-implementation to remove unneccessary loop
-def remove_dontcare_v2(image_anno):
-    filtered_anno = {}
-    no_dc_mask = image_anno["name"] != "DontCare"
-    for key in image_anno.keys():
-        filtered_anno[key] = image_anno[key][no_dc_mask]
-    return filtered_anno
-
 
 
 def remove_low_height(image_anno, thresh):
@@ -732,8 +770,16 @@ def annos_to_kitti_label(annos):
 
 def add_difficulty_to_annos(info):
     min_height = [40, 25, 25]  # minimum height for evaluated groundtruth/detections
-    max_occlusion = [0, 1, 2,]  # maximum occlusion level of the groundtruth used for evaluation
-    max_trunc = [ 0.15, 0.3, 0.5,]  # maximum truncation level of the groundtruth used for evaluation
+    max_occlusion = [
+        0,
+        1,
+        2,
+    ]  # maximum occlusion level of the groundtruth used for evaluation
+    max_trunc = [
+        0.15,
+        0.3,
+        0.5,
+    ]  # maximum truncation level of the groundtruth used for evaluation
     annos = info["annos"]
     dims = annos["dimensions"]  # lhw format
     bbox = annos["bbox"]
@@ -837,6 +883,9 @@ def get_label_anno(label_path):
     )
     with open(label_path, "r") as f:
         lines = f.readlines()
+    # if len(lines) == 0 or len(lines[0]) < 15:
+    #     content = []
+    # else:
     content = [line.strip().split(" ") for line in lines]
     num_objects = len([x[0] for x in content if x[0] != "DontCare"])
     annotations["name"] = np.array([x[0] for x in content])
@@ -844,18 +893,24 @@ def get_label_anno(label_path):
     annotations["truncated"] = np.array([float(x[1]) for x in content])
     annotations["occluded"] = np.array([int(x[2]) for x in content])
     annotations["alpha"] = np.array([float(x[3]) for x in content])
-    annotations["bbox"] = np.array([[float(info) for info in x[4:8]] for x in content]).reshape(-1, 4)
+    annotations["bbox"] = np.array(
+        [[float(info) for info in x[4:8]] for x in content]
+    ).reshape(-1, 4)
     # dimensions will convert hwl format to standard lhw(camera) format.
-    annotations["dimensions"] = np.array([[float(info) for info in x[8:11]] for x in content]).reshape(-1, 3)[:, [2, 0, 1]]
-    annotations["location"] = np.array([[float(info) for info in x[11:14]] for x in content]).reshape(-1, 3)
+    annotations["dimensions"] = np.array(
+        [[float(info) for info in x[8:11]] for x in content]
+    ).reshape(-1, 3)[:, [2, 0, 1]]
+    annotations["location"] = np.array(
+        [[float(info) for info in x[11:14]] for x in content]
+    ).reshape(-1, 3)
     annotations["rotation_y"] = np.array([float(x[14]) for x in content]).reshape(-1)
     if len(content) != 0 and len(content[0]) == 16:  # have score
         annotations["score"] = np.array([float(x[15]) for x in content])
     else:
         annotations["score"] = np.zeros((annotations["bbox"].shape[0],))
     index = list(range(num_objects)) + [-1] * (num_gt - num_objects)
-    annotations["index"] = np.array(index, dtype=np.int32)        # Dontcare index is -1
-    annotations["group_ids"] = np.arange(num_gt, dtype=np.int32)  # Dontcare is counted
+    annotations["index"] = np.array(index, dtype=np.int32)
+    annotations["group_ids"] = np.arange(num_gt, dtype=np.int32)
     return annotations
 
 

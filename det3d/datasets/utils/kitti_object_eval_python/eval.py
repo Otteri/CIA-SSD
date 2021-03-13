@@ -597,17 +597,11 @@ def eval_class(
     return ret_dict
 
 
-# def get_mAP(prec):
-#     sums = 0
-#     for i in range(0, prec.shape[-1], 4):
-#         sums = sums + prec[..., i]
-#     return sums / 11 * 100
-
 def get_mAP(prec):
     sums = 0
-    for i in range(1, prec.shape[-1], 1):  # prec.shape[-1] = 41, based on paper provided by offficial website, R40 = {1/40, 2/40, 3/40, . . . , 1}
+    for i in range(0, prec.shape[-1], 4):
         sums = sums + prec[..., i]
-    return sums / 40 * 100
+    return sums / 11 * 100
 
 
 def print_str(value, *arg, sstream=None):

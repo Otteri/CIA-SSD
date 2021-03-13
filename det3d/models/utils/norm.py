@@ -76,7 +76,8 @@ def build_norm_layer(cfg, num_features, postfix=""):
             layer args: args needed to instantiate a norm layer.
             requires_grad (bool): [optional] whether stop gradient updates
         num_features (int): number of channels from input.
-        postfix (int, str): appended into norm abbreviation to create named layer.
+        postfix (int, str): appended into norm abbreviation to
+            create named layer.
     Returns:
         name (str): abbreviation + postfix
         layer (nn.Module): created norm layer
@@ -84,7 +85,7 @@ def build_norm_layer(cfg, num_features, postfix=""):
     assert isinstance(cfg, dict) and "type" in cfg
     cfg_ = cfg.copy()
 
-    layer_type = cfg_.pop("type")   # 'BN1d'
+    layer_type = cfg_.pop("type")
     if layer_type not in norm_cfg:
         raise KeyError("Unrecognized norm type {}".format(layer_type))
     else:

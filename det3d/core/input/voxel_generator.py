@@ -1,10 +1,5 @@
 import numpy as np
-
-# default version:
-#from det3d.ops.point_cloud.point_cloud_ops import points_to_voxel
-
-# fast version:
-from det3d.ops.point_cloud.point_cloud_ops_v2 import points_to_voxel
+from det3d.ops.point_cloud.point_cloud_ops import points_to_voxel
 
 
 class VoxelGenerator:

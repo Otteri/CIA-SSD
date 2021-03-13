@@ -4,7 +4,7 @@ from pathlib import Path
 from det3d.builder import build_box_coder
 from det3d.utils.config_tool import get_downsample_factor
 
-data_root_prefix = "/mnt/proj50/zhengwu"
+data_root_prefix = "/home/cosmo/data/KITTI_DATASET"
 norm_cfg = None
 tasks = [dict(num_class=1, class_names=["Car"],),]
 class_names = list(itertools.chain(*[t["class_names"] for t in tasks]))
@@ -38,7 +38,7 @@ model = dict(
     reader=dict(type="VoxelFeatureExtractorV3", num_input_features=4, norm_cfg=norm_cfg,),
     backbone=dict(type="SpMiddleFHD", num_input_features=4, ds_factor=8, norm_cfg=norm_cfg,),
     neck=dict(
-        type="SSFA",
+        type="RPN",
         layer_nums=[5,],
         ds_layer_strides=[1,],
         ds_num_filters=[128,],
@@ -119,7 +119,7 @@ dataset_type = "KittiDataset"
 db_sampler = dict(
     type="GT-AUG",
     enable=True,
-    db_info_path=data_root_prefix + "/KITTI/object/dbinfos_train.pkl",
+    db_info_path=data_root_prefix + "/dbinfos_train.pkl",
     sample_groups=[dict(Car=15,),],
     db_prep_steps=[
         dict(filter_by_min_num_points=dict(Car=5,)),
@@ -188,10 +188,10 @@ test_pipeline = [
 ]
 
 
-data_root = data_root_prefix + "/KITTI/object"
-train_anno = data_root_prefix + "/KITTI/object/kitti_infos_train.pkl"
-val_anno = data_root_prefix + "/KITTI/object/kitti_infos_val.pkl"
-test_anno = data_root_prefix + "/KITTI/object/kitti_infos_test.pkl"
+data_root = data_root_prefix
+train_anno = data_root_prefix + "/kitti_infos_train.pkl"
+val_anno = data_root_prefix + "/kitti_infos_val.pkl"
+test_anno = data_root_prefix + "/kitti_infos_test.pkl"
 
 data = dict(
     samples_per_gpu=my_paras['batch_size'],  # batch_size: 4
@@ -220,7 +220,14 @@ data = dict(
 )
 
 # optimizer
-optimizer = dict(type="adam", amsgrad=0.0, wd=0.01, fixed_wd=True, moving_average=False,)
+#optimizer = dict(type="adam", amsgrad=0.0, wd=0.01, fixed_wd=True, moving_average=False,)
+optimizer = dict(
+    TYPE="adam",
+    VALUE=dict(amsgrad=0.0, wd=0.01),
+    FIXED_WD=True,
+    MOVING_AVERAGE=False,
+)
+
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 lr_config = dict(type="one_cycle", lr_max=0.003, moms=[0.95, 0.85], div_factor=10.0, pct_start=0.4,)  # learning policy in training hooks
 
@@ -232,7 +239,7 @@ total_epochs = 60
 device_ids = range(8)
 dist_params = dict(backend="nccl", init_method="env://")
 log_level = "INFO"
-work_dir = "/mnt/proj50/zhengwu/saved_model/KITTI/proj52/megvii/second/" + TAG
+work_dir = "/home/cosmo/data/cia-ssd-models/second/" + TAG
 load_from = None
 resume_from = None
 workflow = [("train", 60), ("val", 1)]  # todo: only length of workflow has been used

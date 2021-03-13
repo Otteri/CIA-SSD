@@ -2,6 +2,8 @@ from .builder import build_dataset
 
 # from .cityscapes import CityscapesDataset
 from .kitti import KittiDataset
+from .lyft import LyftDataset
+from .nuscenes import NuScenesDataset
 
 # from .custom import CustomDataset
 from .dataset_wrappers import ConcatDataset, RepeatDataset
