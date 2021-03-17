@@ -1,0 +1,4 @@
+[submodule "Det3D"]
+	path = Det3D
+	url = git@github.com:Otteri/Det3D.git
+	branch = ssfa

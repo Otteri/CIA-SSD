@@ -31,8 +31,8 @@ The pipeline of our proposed Confident IoU-Aware Single-Stage object Detector (C
 ## Installation
 
 ```bash
-$ git clone https://github.com/Vegeta2020/CIA-SSD.git
-$ cd ./CIA-SSD/det3d/core/iou3d
+$ git clone --recursive git@github.com:Otteri/CIA-SSD.git
+$ cd ./CIA-SSD/Det3D/det3d/core/iou3d # TODO: fix this, may not work anymore
 $ python setup.py install
 $ cd ./CIA-SSD
 $ python setup.py build develop
@@ -75,13 +75,5 @@ If you find this work useful in your research, please star our repository and co
 }
 ```
 
-
 ## License
 This codebase is released under the Apache 2.0 license.
-
-## Acknowledgement
-Our code are mainly based on [Det3D](https://github.com/poodarchu/det3d), thanks for their contributions! We also thank for the reviewers's valuable comments on this paper.
-
-
-## Contact
-If you have any question or suggestion about this repo, please feel free to contact me (zheng-w10@foxmail.com)
