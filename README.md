@@ -41,6 +41,16 @@ Please follow Det3D for installation of other [related packages](https://github.
 
 ## Train and Eval
 
+```
+Use the scripts provided with Det3D:
+python Det3D/tools/train.py <config>
+
+python Det3D/tools/test.py <config>
+
+/home/cosmo/code/cia-ssd/CIA-SSD/examples/second/configs/kitti_car_vfev3_spmiddlefhd_rpn1_mghead_syncbn.py
+
+```
+
 Configure the model in
 ```bash
 $ /CIA-SSD/examples/second/configs/kitti_car_vfev3_spmiddlefhd_rpn1_mghead_syncbn.py
