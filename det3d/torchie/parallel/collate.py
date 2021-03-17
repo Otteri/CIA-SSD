@@ -127,7 +127,7 @@ def collate_kitti(batch_list, samples_per_gpu=1):
                         ret[key][k1].append(v1)
             for k1, v1 in ret[key].items():
                 ret[key][k1] = torch.tensor(np.stack(v1, axis=0))
-        elif key in ["coordinates", "points"]: 
+        elif key in ["coordinates", "points"]:
             coors = []
             for i, coor in enumerate(elems):
                 coor_pad = np.pad(

@@ -17,7 +17,6 @@ from .losses import (
     BootstrappedSigmoidClassificationLoss,
 )
 
-
 __all__ = [
     "BalancedL1Loss",
     "CrossEntropyLoss",

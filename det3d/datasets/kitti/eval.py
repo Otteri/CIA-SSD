@@ -6,7 +6,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 
 from det3d.ops.nms.nms_gpu import rotate_iou_gpu_eval
-from det3d.core.bbox import box_np_ops
+from det3d.core import box_np_ops
 from det3d.datasets.utils.eval import box3d_overlap_kernel
 from det3d.datasets.utils.eval import box3d_overlap
 from det3d.datasets.utils.eval import calculate_iou_partly
@@ -333,12 +333,6 @@ def get_mAP(prec):
         sums = sums + prec[..., i]
     return sums / 11 * 100
 
-#def get_mAP(prec):
-#    sums = 0
-#    for i in range(0, prec.shape[-1], 1):
-#        sums = sums + prec[..., i]
-#    return sums / 41 * 100
-
 
 def do_eval_v2(
     gt_annos,
@@ -434,7 +428,8 @@ def do_coco_style_eval(
     min_overlaps = np.zeros([10, *overlap_ranges.shape[1:]])
     for i in range(overlap_ranges.shape[1]):
         for j in range(overlap_ranges.shape[2]):
-            min_overlaps[:, i, j] = np.linspace(*overlap_ranges[:, i, j])
+            start, stop, num = overlap_ranges[:, i, j]
+            min_overlaps[:, i, j] = np.linspace(start, stop, int(num))
     mAP_bbox, mAP_bev, mAP_3d, mAP_aos = do_eval_v2(
         gt_annos,
         dt_annos,

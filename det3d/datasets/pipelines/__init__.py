@@ -15,7 +15,7 @@ from .transforms import (
     Resize,
     SegResizeFlipPadRescale,
 )
-from .preprocess_v4 import Preprocess, Voxelization, AssignTarget
+from .preprocess import Preprocess, Voxelization, AssignTarget
 
 __all__ = [
     "Compose",

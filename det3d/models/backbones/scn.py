@@ -110,7 +110,9 @@ class SpMiddleFHD(nn.Module):
             SubMConv3d(16, 16, 3, bias=False, indice_key="subm0"),
             build_norm_layer(norm_cfg, 16)[1],
             nn.ReLU(),
-            SparseConv3d(16, 32, 3, 2, padding=1, bias=False),  # [41, 1600, 1408] -> [21, 800, 704]
+            SparseConv3d(
+                16, 32, 3, 2, padding=1, bias=False
+            ),  # [1600, 1200, 41] -> [800, 600, 21]
             build_norm_layer(norm_cfg, 32)[1],
             nn.ReLU(),
             SubMConv3d(32, 32, 3, indice_key="subm1", bias=False),
@@ -119,7 +121,9 @@ class SpMiddleFHD(nn.Module):
             SubMConv3d(32, 32, 3, indice_key="subm1", bias=False),
             build_norm_layer(norm_cfg, 32)[1],
             nn.ReLU(),
-            SparseConv3d(32, 64, 3, 2, padding=1, bias=False),  # [21, 800, 704] -> [11, 400, 352]
+            SparseConv3d(
+                32, 64, 3, 2, padding=1, bias=False
+            ),  # [800, 600, 21] -> [400, 300, 11]
             build_norm_layer(norm_cfg, 64)[1],
             nn.ReLU(),
             SubMConv3d(64, 64, 3, indice_key="subm2", bias=False),
@@ -131,7 +135,9 @@ class SpMiddleFHD(nn.Module):
             SubMConv3d(64, 64, 3, indice_key="subm2", bias=False),
             build_norm_layer(norm_cfg, 64)[1],
             nn.ReLU(),
-            SparseConv3d(64, 64, 3, 2, padding=[0, 1, 1], bias=False),  # [11, 400, 352] -> [5, 200, 176]
+            SparseConv3d(
+                64, 64, 3, 2, padding=[0, 1, 1], bias=False
+            ),  # [400, 300, 11] -> [200, 150, 5]
             build_norm_layer(norm_cfg, 64)[1],
             nn.ReLU(),
             SubMConv3d(64, 64, 3, indice_key="subm3", bias=False),
@@ -143,13 +149,14 @@ class SpMiddleFHD(nn.Module):
             SubMConv3d(64, 64, 3, indice_key="subm3", bias=False),
             build_norm_layer(norm_cfg, 64)[1],
             nn.ReLU(),
-            SparseConv3d(64, 64, (3, 1, 1), (2, 1, 1), bias=False),  # [5, 200, 176] -> [2, 200, 176]
+            SparseConv3d(
+                64, 64, (3, 1, 1), (2, 1, 1), bias=False
+            ),  # [200, 150, 5] -> [200, 150, 2]
             build_norm_layer(norm_cfg, 64)[1],
             nn.ReLU(),
         )
 
     def init_weights(self, pretrained=None):
-        import ipdb; ipdb.set_trace()
         if isinstance(pretrained, str):
             logger = logging.getLogger()
             load_checkpoint(self, pretrained, strict=False, logger=logger)
@@ -314,36 +321,35 @@ class SpMiddleResNetFHD(nn.Module):
 
         # input: # [1600, 1200, 41]
         self.middle_conv = spconv.SparseSequential(
-
             SubMConv3d(num_input_features, 16, 3, bias=False, indice_key="res0"),
             build_norm_layer(norm_cfg, 16)[1],
             nn.ReLU(),
-
             SparseBasicBlock(16, 16, norm_cfg=norm_cfg, indice_key="res0"),
             SparseBasicBlock(16, 16, norm_cfg=norm_cfg, indice_key="res0"),
-
-            SparseConv3d(16, 32, 3, 2, padding=1, bias=False),  # [1600, 1200, 41] -> [800, 600, 21]
+            SparseConv3d(
+                16, 32, 3, 2, padding=1, bias=False
+            ),  # [1600, 1200, 41] -> [800, 600, 21]
             build_norm_layer(norm_cfg, 32)[1],
             nn.ReLU(),
-
             SparseBasicBlock(32, 32, norm_cfg=norm_cfg, indice_key="res1"),
             SparseBasicBlock(32, 32, norm_cfg=norm_cfg, indice_key="res1"),
-
-            SparseConv3d(32, 64, 3, 2, padding=1, bias=False),  # [800, 600, 21] -> [400, 300, 11]
+            SparseConv3d(
+                32, 64, 3, 2, padding=1, bias=False
+            ),  # [800, 600, 21] -> [400, 300, 11]
             build_norm_layer(norm_cfg, 64)[1],
             nn.ReLU(),
-
             SparseBasicBlock(64, 64, norm_cfg=norm_cfg, indice_key="res2"),
             SparseBasicBlock(64, 64, norm_cfg=norm_cfg, indice_key="res2"),
-
-            SparseConv3d(64, 128, 3, 2, padding=[0, 1, 1], bias=False),  # [400, 300, 11] -> [200, 150, 5]
+            SparseConv3d(
+                64, 128, 3, 2, padding=[0, 1, 1], bias=False
+            ),  # [400, 300, 11] -> [200, 150, 5]
             build_norm_layer(norm_cfg, 128)[1],
             nn.ReLU(),
-
             SparseBasicBlock(128, 128, norm_cfg=norm_cfg, indice_key="res3"),
             SparseBasicBlock(128, 128, norm_cfg=norm_cfg, indice_key="res3"),
-
-            SparseConv3d(128, 128, (3, 1, 1), (2, 1, 1), bias=False),  # [200, 150, 5] -> [200, 150, 2]
+            SparseConv3d(
+                128, 128, (3, 1, 1), (2, 1, 1), bias=False
+            ),  # [200, 150, 5] -> [200, 150, 2]
             build_norm_layer(norm_cfg, 128)[1],
             nn.ReLU(),
         )
@@ -385,7 +391,9 @@ class RCNNSpMiddleFHD(nn.Module):
             SubMConv3d(16, 16, 3, bias=False, indice_key="subm0"),
             build_norm_layer(norm_cfg, 16)[1],
             nn.ReLU(),
-            SparseConv3d(16, 32, 3, 2, padding=1, bias=False),  # [32, 80, 41] -> [16, 40, 21]
+            SparseConv3d(
+                16, 32, 3, 2, padding=1, bias=False
+            ),  # [32, 80, 41] -> [16, 40, 21]
             build_norm_layer(norm_cfg, 32)[1],
             nn.ReLU(),
             SubMConv3d(32, 32, 3, bias=False, indice_key="subm1"),
@@ -394,7 +402,9 @@ class RCNNSpMiddleFHD(nn.Module):
             # SubMConv3d(32, 32, 3, bias=False, indice_key="subm1"),
             # build_norm_layer(norm_cfg, 32)[1],
             # nn.ReLU(),
-            SparseConv3d(32, 64, 3, 2, bias=False, padding=1),  # [16, 40, 21] -> [8, 20, 11]
+            SparseConv3d(
+                32, 64, 3, 2, bias=False, padding=1
+            ),  # [16, 40, 21] -> [8, 20, 11]
             build_norm_layer(norm_cfg, 64)[1],
             nn.ReLU(),
             SubMConv3d(64, 64, 3, bias=False, indice_key="subm2"),
@@ -406,7 +416,9 @@ class RCNNSpMiddleFHD(nn.Module):
             # SubMConv3d(64, 64, 3, bias=False, indice_key="subm2"),
             # build_norm_layer(norm_cfg, 64)[1],
             # nn.ReLU(),
-            SparseConv3d(64, 64, 3, 2, bias=False, padding=[1, 1, 0]),  # [8, 20, 11] -> [4, 10, 5]
+            SparseConv3d(
+                64, 64, 3, 2, bias=False, padding=[1, 1, 0]
+            ),  # [8, 20, 11] -> [4, 10, 5]
             build_norm_layer(norm_cfg, 64)[1],
             nn.ReLU(),
             SubMConv3d(64, 64, 3, bias=False, indice_key="subm3"),
@@ -418,7 +430,9 @@ class RCNNSpMiddleFHD(nn.Module):
             # SubMConv3d(64, 64, 3, bias=False, indice_key="subm3"),
             # build_norm_layer(norm_cfg, 64)[1],
             # nn.ReLU(),
-            SparseConv3d(64, 64, (1, 1, 3), (1, 1, 2), bias=False),  # [4, 10, 5] -> [4, 10, 2]
+            SparseConv3d(
+                64, 64, (1, 1, 3), (1, 1, 2), bias=False
+            ),  # [4, 10, 5] -> [4, 10, 2]
             build_norm_layer(norm_cfg, 64)[1],
             nn.ReLU(),
         )

@@ -1,4 +1,5 @@
 from .fpn import FPN
-from .rpn_v1 import SSFA
+from .rpn import RPN, PointModule
+from .ssfa import SSFA
 
-__all__ = ["SSFA"]
+__all__ = ["RPN", "PointModule", "FPN", "SSFA"]

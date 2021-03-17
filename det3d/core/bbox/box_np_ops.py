@@ -50,8 +50,8 @@ def rinter_cc(rbboxes, qrbboxes, standup_thresh=0.0):
 
 
 def second_box_encode(
-    boxes,            # [num_pos_anchor, 7]
-    anchors,          # [num_pos_anchor, 7]
+    boxes,
+    anchors,
     encode_angle_to_vector=False,
     smooth_dim=False,
     cylindrical=False,
@@ -63,21 +63,21 @@ def second_box_encode(
         anchors ([N, 7] Tensor): anchors
     """
     # need to convert boxes to z-center format
-    box_ndim = anchors.shape[-1]         # 7
+    box_ndim = anchors.shape[-1]
 
     if box_ndim == 7:
-        xa, ya, za, wa, la, ha, ra = np.split(anchors, box_ndim, axis=1)   # [num_pos_anchor, 1], [num_pos_anchor, 1] ...
-        xg, yg, zg, wg, lg, hg, rg = np.split(boxes, box_ndim, axis=1)     # [num_pos_anchor, 1], [num_pos_anchor, 1] ...
+        xa, ya, za, wa, la, ha, ra = np.split(anchors, box_ndim, axis=1)
+        xg, yg, zg, wg, lg, hg, rg = np.split(boxes, box_ndim, axis=1)
     else:
         xa, ya, za, wa, la, ha, vxa, vya, ra = np.split(anchors, box_ndim, axis=1)
         xg, yg, zg, wg, lg, hg, vxg, vyg, rg = np.split(boxes, box_ndim, axis=1)
 
-    diagonal = np.sqrt(la ** 2 + wa ** 2)  # [num_pos_anchor, 1], 4.215
+    diagonal = np.sqrt(la ** 2 + wa ** 2)  # 4.3
     xt = (xg - xa) / diagonal
     yt = (yg - ya) / diagonal
-    zt = (zg - za) / ha
+    zt = (zg - za) / ha  # 1.6
 
-    if smooth_dim:  # False
+    if smooth_dim:
         lt = lg / la - 1
         wt = wg / wa - 1
         ht = hg / ha - 1
@@ -88,7 +88,7 @@ def second_box_encode(
 
     ret = [xt, yt, zt, wt, lt, ht]
 
-    if box_ndim > 7:  # False
+    if box_ndim > 7:
         if norm_velo:
             vxt = (vxg - vxa) / diagonal
             vyt = (vyg - vya) / diagonal
@@ -97,7 +97,7 @@ def second_box_encode(
             vyt = vyg - vya
         ret.extend([vxt, vyt])
 
-    if encode_angle_to_vector:  # False
+    if encode_angle_to_vector:
         rgx = np.cos(rg)
         rgy = np.sin(rg)
         rax = np.cos(ra)
@@ -110,7 +110,7 @@ def second_box_encode(
         rt = rg - ra
         ret.append(rt)
 
-    return np.concatenate(ret, axis=1)   # [num_pos_anchor, 7]
+    return np.concatenate(ret, axis=1)
 
 
 def second_box_decode(
@@ -279,13 +279,16 @@ def corners_nd(dims, origin=0.5):
             where x0 < x1, y0 < y1, z0 < z1
     """
     ndim = int(dims.shape[1])
-    corners_norm = np.stack(np.unravel_index(np.arange(2 ** ndim), [2] * ndim), axis=1).astype(dims.dtype)
+    corners_norm = np.stack(
+        np.unravel_index(np.arange(2 ** ndim), [2] * ndim), axis=1
+    ).astype(dims.dtype)
     # now corners_norm has format: (2d) x0y0, x0y1, x1y0, x1y1
     # (3d) x0y0z0, x0y0z1, x0y1z0, x0y1z1, x1y0z0, x1y0z1, x1y1z0, x1y1z1
     # so need to convert to a format which is convenient to do other computing.
     # for 2d boxes, format is clockwise start with minimum point
     # for 3d boxes, please draw lines by your hand.
-    if ndim == 2:  # generate clockwise box corners
+    if ndim == 2:
+        # generate clockwise box corners
         corners_norm = corners_norm[[0, 1, 3, 2]]
     elif ndim == 3:
         corners_norm = corners_norm[[0, 1, 3, 2, 4, 5, 7, 6]]
@@ -329,20 +332,6 @@ def corner_to_standup_nd_jit(boxes_corner):
     return result
 
 
-@numba.njit
-def far_points_first(points, dist_thres, max_voxel_num, shuffle=False):
-    indices = np.arange(points.shape[0])
-    points_dist = np.sqrt((points[:, :3]**2).sum(1))
-    far_points_mask = points_dist > dist_thres
-    near_points_mask = np.logical_not(far_points_mask)
-    far_points_indices = indices[far_points_mask]
-    near_points_indices = indices[near_points_mask]
-    points_indices = np.concatenate((far_points_indices, near_points_indices), axis=0)
-    if shuffle:
-        np.random.shuffle(points_indices[:max_voxel_num])
-    points = points[points_indices]
-    return points
-
 def corner_to_standup_nd(boxes_corner):
     assert len(boxes_corner.shape) == 3
     standup_boxes = []
@@ -359,18 +348,15 @@ def rbbox2d_to_near_bbox(rbboxes):
         bboxes: [N, 4(xmin, ymin, xmax, ymax)] bboxes
     """
     rots = rbboxes[..., -1]
-    rots_0_pi_div_2 = np.abs(limit_period(rots, 0.5, np.pi))   # limit ry in range [-np.pi/2., np.pi/2.]
+    rots_0_pi_div_2 = np.abs(limit_period(rots, 0.5, np.pi))
     cond = (rots_0_pi_div_2 > np.pi / 4)[..., np.newaxis]
-    bboxes_center = np.where(cond, rbboxes[:, [0, 1, 3, 2]], rbboxes[:, :4])  # if True, change w and l; otherwise keep the same;
+    bboxes_center = np.where(cond, rbboxes[:, [0, 1, 3, 2]], rbboxes[:, :4])
     bboxes = center_to_minmax_2d(bboxes_center[:, :2], bboxes_center[:, 2:])
     return bboxes
 
 
 def rotation_3d_in_axis(points, angles, axis=0):
-    '''
-        points: [num_point, 3] / [1, 8, 3]
-        angles: [num_gt_boxes,]
-    '''
+    # points: [N, point_size, 3]
     rot_sin = np.sin(angles)
     rot_cos = np.cos(angles)
     ones = np.ones_like(rot_cos)
@@ -402,7 +388,7 @@ def rotation_3d_in_axis(points, angles, axis=0):
     else:
         raise ValueError("axis should in range")
 
-    return np.einsum("aij,jka->aik", points, rot_mat_T)   # (N, 8, 3) x (3, 3, num_angles) -> (N, 8, 3)
+    return np.einsum("aij,jka->aik", points, rot_mat_T)
 
 
 def rotation_points_single_angle(points, angle, axis=0):
@@ -480,30 +466,9 @@ def center_to_corner_box3d(centers, dims, angles=None, origin=(0.5, 0.5, 0.5), a
     # 'length' in kitti format is in x axis.
     # yzx(hwl)(kitti label file)<->xyz(lhw)(camera)<->z(-x)(-y)(wlh)(lidar)
     # center in kitti format is [0.5, 1.0, 0.5] in xyz.
-    '''
-    corners (in velo coord): [N, 8, 3]
-            6 -------- 5
-           /|         /|
-          2 -------- 1 .
-          | |        | |
-          . 7 -------- 4
-          |/         |/
-          3 -------- 0
-    corners_norm:
-      [[-0.5, -0.5, -0.5],
-       [-0.5, -0.5,  0.5],
-       [-0.5,  0.5,  0.5],
-       [-0.5,  0.5, -0.5],
-       [ 0.5, -0.5, -0.5],
-       [ 0.5, -0.5,  0.5],
-       [ 0.5,  0.5,  0.5],
-       [ 0.5,  0.5, -0.5]]
-       
-    corners = dims.reshape([-1, 1, 3]) * corners_norm  # dims: wlh (xyz), corners_norm.shape = [1, 8, 3]
-    '''
-    corners = corners_nd(dims, origin=origin)   # [w, l, h] * corners_norm
-    if angles is not None:  # True
-        # if ry > 0, then rotate clockwisely; otherwise, rotate anti-clockwisely; remember: initial is 0 degree.
+    corners = corners_nd(dims, origin=origin)
+    # corners: [N, 8, 3]
+    if angles is not None:
         corners = rotation_3d_in_axis(corners, angles, axis=axis)
     corners += centers.reshape([-1, 1, 3])
     return corners
@@ -534,18 +499,6 @@ def center_to_corner_box2d(centers, dims, angles=None, origin=0.5):
 
 @numba.jit(nopython=True)
 def box2d_to_corner_jit(boxes):
-    '''
-        Transform the 2d box [x,y,w,l,ry] to the bev 2d-corners,
-        with rotation of ry-angle clockwise and translation of real-center.
-
-            1 ------ 2
-           /        /
-          0 ------ 3
-        0: [-0.5, -0.5]
-        1: [-0.5, 0.5]
-        2: [0.5, 0.5]
-        3: [0.5, -0.5]
-    '''
     num_box = boxes.shape[0]
     corners_norm = np.zeros((4, 2), dtype=boxes.dtype)
     corners_norm[1, 1] = 1.0
@@ -562,7 +515,7 @@ def box2d_to_corner_jit(boxes):
         rot_mat_T[0, 1] = -rot_sin
         rot_mat_T[1, 0] = rot_sin
         rot_mat_T[1, 1] = rot_cos
-        box_corners[i] = corners[i] @ rot_mat_T + boxes[i, :2]   # rotate clockwisely.
+        box_corners[i] = corners[i] @ rot_mat_T + boxes[i, :2]
     return box_corners
 
 
@@ -616,7 +569,7 @@ def center_to_minmax_2d(centers, dims, origin=0.5):
     return corners[:, [0, 2]].reshape([-1, 4])
 
 
-def limit_period(val, offset=0.5, period=2 * np.pi):
+def limit_period(val, offset=0.5, period=np.pi):
     return val - np.floor(val / period + offset) * period
 
 
@@ -778,59 +731,78 @@ def create_anchors_bev_stride(
 
 
 def create_anchors_3d_range(
-    feature_size,             # [1, 200, 176]
-    anchor_range,             # [0, -40.0, -1.0, 70.4, 40.0, -1.0]
-    sizes=[1.6, 3.9, 1.56],   # w, l, h
+    feature_size,
+    anchor_range,
+    sizes=[1.6, 3.9, 1.56],
     rotations=[0, np.pi / 2],
     velocities=None,
     dtype=np.float32,
 ):
     """
     Args:
-        feature_size: list [D, H, W](zyx).
-        sizes: [N, 3] list of list or array, size of anchors, xyz.
-        rotations: len(stride) num Reference.
+        feature_size: list [D, H, W](zyx)
+        sizes: [N, 3] list of list or array, size of anchors, xyz
+        rotations: len(stride) num Reference
         velocities: ref velo along x and y axis.
 
     Returns:
-        anchors: [*feature_size, num_sizes, num_rots, 7] -> [1, 200, 176, 1, 2, 7]
-
+        anchors: [*feature_size, num_sizes, num_rots, 9] tensor.
     """
-    # create mesh of anchor centers
     anchor_range = np.array(anchor_range, dtype)
-    stride = (anchor_range[3] - anchor_range[0]) / feature_size[2]    # (70.4 - 0) / 176 = 0.4
-    z_centers =  np.linspace(anchor_range[2], anchor_range[5], feature_size[0], dtype=dtype)   # [-1, -1]
-    y_centers = (np.linspace(anchor_range[1], anchor_range[4], feature_size[1], endpoint=False, dtype=dtype,) + stride / 2)  # [-40, 40], move to center
-    x_centers = (np.linspace(anchor_range[0], anchor_range[3], feature_size[2], endpoint=False, dtype=dtype,) + stride / 2)  # [0, 70.4]
-    rotations = np.array(rotations, dtype=dtype)                      # [0. 1.57]
-    rets = np.meshgrid(x_centers, y_centers, z_centers, rotations, indexing="ij")  # rets[i]: (176, 200, 1, 2)
+    stride = (anchor_range[3] - anchor_range[0]) / feature_size[2]
 
-    # unknown operations
-    sizes = np.reshape(np.array(sizes, dtype=dtype), [-1, 3])   # [1.6, 3.9, 1.56]
-    tile_shape = [1] * 5
-    tile_shape[-2] = int(sizes.shape[0])     # [1, 1, 1, 1, 1]
+    z_centers = np.linspace(
+        anchor_range[2], anchor_range[5], feature_size[0], dtype=dtype
+    )
+    y_centers = (
+        np.linspace(
+            anchor_range[1],
+            anchor_range[4],
+            feature_size[1],
+            endpoint=False,
+            dtype=dtype,
+        )
+        + stride / 2
+    )
+    x_centers = (
+        np.linspace(
+            anchor_range[0],
+            anchor_range[3],
+            feature_size[2],
+            endpoint=False,
+            dtype=dtype,
+        )
+        + stride / 2
+    )
+    rotations = np.array(rotations, dtype=dtype)
+    sizes = np.reshape(np.array(sizes, dtype=dtype), [-1, 3])
 
-    for i in range(len(rets)):  # len: 4
-        rets[i] = np.tile(rets[i][..., np.newaxis, :], tile_shape)
-        rets[i] = rets[i][..., np.newaxis]   # rets[i]: (176, 200, 1, 2) -> (176, 200, 1, +1, 2, +1)
-
-    # prepare anchor size (w, l, h)
-    if velocities is not None: # False
+    if velocities is not None:
         velocities = np.array(velocities, dtype=dtype).reshape([-1, 2])
         combines = np.hstack([sizes, velocities]).reshape([-1, 5])
     else:
-        combines = sizes        # [1, 3]: [1.6, 3.9, 1.56]
+        combines = sizes
 
-    combines = np.reshape(combines, [1, 1, 1, -1, 1, combines.shape[-1]])   # [1, 1, 1, 1, 1, 3]
-    tile_size_shape = list(rets[0].shape)  # [176, 200, 1, 1, 2, 1]
-    tile_size_shape[3] = 1                 # [176, 200, 1, 1, 2, 1]
-    combines = np.tile(combines, tile_size_shape)  # (176, 200, 1, 1, 2, 3):  [1.6, 3.9, 1.56]
+    rets = np.meshgrid(x_centers, y_centers, z_centers, rotations, indexing="ij")
 
-    # get anchors <- [x, y, z, inserted: [w, l, h], r]
+    tile_shape = [1] * 5
+    tile_shape[-2] = int(sizes.shape[0])
+    for i in range(len(rets)):
+        rets[i] = np.tile(rets[i][..., np.newaxis, :], tile_shape)
+        rets[i] = rets[i][..., np.newaxis]  # for concat
+    # sizes = np.reshape(sizes, [1, 1, 1, -1, 1, 3])
+    combines = np.reshape(combines, [1, 1, 1, -1, 1, combines.shape[-1]])
+    tile_size_shape = list(rets[0].shape)
+    tile_size_shape[3] = 1
+    # sizes = np.tile(sizes, tile_size_shape)
+    combines = np.tile(combines, tile_size_shape)
+
+    # rets.insert(3, sizes)
     rets.insert(3, combines)
-    ret = np.concatenate(rets, axis=-1)  # (176, 200, 1, 1, 2, 7)
 
-    return np.transpose(ret, [2, 1, 0, 3, 4, 5])    #  [*feature_size, num_sizes, num_rots, 7]: (1, 200, 176, 1, 2, 7)
+    ret = np.concatenate(rets, axis=-1)
+
+    return np.transpose(ret, [2, 1, 0, 3, 4, 5])
 
 
 def create_anchors_bev_range(
@@ -943,18 +915,6 @@ def camera_to_lidar(points, r_rect, velo2cam):
 
 
 def lidar_to_camera(points, r_rect, velo2cam):
-    '''
-       r_rect[4,4]:
-                [[ 0.9999239 ,  0.00983776, -0.00744505,  0.        ],
-                 [-0.0098698 ,  0.9999421 , -0.00427846,  0.        ],
-                 [ 0.00740253,  0.00435161,  0.9999631 ,  0.        ],
-                 [ 0.        ,  0.        ,  0.        ,  1.        ]]
-       velo2cam[4,4]:
-               [[ 7.533745e-03, -9.999714e-01, -6.166020e-04, -4.069766e-03],
-               [ 1.480249e-02,  7.280733e-04, -9.998902e-01, -7.631618e-02],
-               [ 9.998621e-01,  7.523790e-03,  1.480755e-02, -2.717806e-01],
-               [ 0.000000e+00,  0.000000e+00,  0.000000e+00,  1.000000e+00]]
-    '''
     points_shape = list(points.shape[:-1])
     if points.shape[-1] == 3:
         points = np.concatenate([points, np.ones(points_shape + [1])], axis=-1)
@@ -990,18 +950,6 @@ def remove_outside_points(points, rect, Trv2c, P2, image_shape):
     indices = points_in_convex_polygon_3d_jit(points[:, :3], frustum_surfaces)
     points = points[indices.reshape([-1])]
     return points
-
-
-def get_valid_frustum(rect, Trv2c, P2, image_shape):
-    C, R, T = projection_matrix_to_CRT_kitti(P2)
-    image_bbox = [0, 0, image_shape[1], image_shape[0]]
-    frustum = get_frustum(image_bbox, C)
-    frustum -= T
-    frustum = np.linalg.inv(R) @ frustum.T
-    frustum = camera_to_lidar(frustum.T, rect, Trv2c)
-    frustum_surfaces = corner_to_surfaces_3d_jit(frustum[np.newaxis, ...])
-    return frustum_surfaces
-
 
 
 @numba.jit(nopython=True)
@@ -1150,8 +1098,9 @@ def iou_nd_jit(boxes, query_boxes, add1=True):
 
 
 def points_in_rbbox(points, rbbox, z_axis=2, origin=(0.5, 0.5, 0.5)):
-    # get point indexs in the rotated boxes
-    rbbox_corners = center_to_corner_box3d(rbbox[:, :3], rbbox[:, 3:6], rbbox[:, -1], origin=origin, axis=z_axis)
+    rbbox_corners = center_to_corner_box3d(
+        rbbox[:, :3], rbbox[:, 3:6], rbbox[:, -1], origin=origin, axis=z_axis
+    )
     surfaces = corner_to_surfaces_3d(rbbox_corners)
     indices = points_in_convex_polygon_3d_jit(points[:, :3], surfaces)
     return indices
@@ -1160,15 +1109,6 @@ def points_in_rbbox(points, rbbox, z_axis=2, origin=(0.5, 0.5, 0.5)):
 def corner_to_surfaces_3d(corners):
     """convert 3d box corners from corner function above
     to surfaces that normal vectors all direct to internal.
-
-    corners (in velo coord): [N, 8, 3]
-            6 -------- 5
-           /|         /|
-          2 -------- 1 .
-          | |        | |
-          . 7 -------- 4
-          |/         |/
-          3 -------- 0
 
     Args:
         corners (float array, [N, 8, 3]): 3d box corners.

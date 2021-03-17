@@ -26,43 +26,49 @@ def unmap(data, count, inds, fill=0):
 
 
 def create_target_np(
-    all_anchors,      # (70400, 7)
-    gt_boxes,         # (M, 7)
+    all_anchors,
+    gt_boxes,
     similarity_fn,
     box_encoding_fn,
-    prune_anchor_fn=None,   # None
-    gt_classes=None,        # (M,)
+    prune_anchor_fn=None,
+    gt_classes=None,
     matched_threshold=0.6,
     unmatched_threshold=0.45,
     bbox_inside_weight=None,
-    positive_fraction=None, # None
+    positive_fraction=None,
     rpn_batch_size=300,
     norm_by_num_examples=False,
     box_code_size=7,
 ):
-    """Modified from FAIR detection.
+    """Modified from FAIR detectron.
     Args:
         all_anchors: [num_of_anchors, box_ndim] float tensor.
         gt_boxes: [num_gt_boxes, box_ndim] float tensor.
-        similarity_fn: a function, accept anchors and gt_boxes, return similarity matrix(such as IoU).
-        box_encoding_fn: a function, accept gt_boxes and anchors, return box encodings(offsets).
-        prune_anchor_fn: a function, accept anchors, return indices that indicate valid anchors.
-        gt_classes: [num_gt_boxes] int tensor. indicate gt classes, must start with 1.
-        matched_threshold: float, iou greater than matched_threshold will be treated as positives.
-        unmatched_threshold: float, iou smaller than unmatched_threshold will be treated as negatives.
+        similarity_fn: a function, accept anchors and gt_boxes, return
+            similarity matrix(such as IoU).
+        box_encoding_fn: a function, accept gt_boxes and anchors, return
+            box encodings(offsets).
+        prune_anchor_fn: a function, accept anchors, return indices that
+            indicate valid anchors.
+        gt_classes: [num_gt_boxes] int tensor. indicate gt classes, must
+            start with 1.
+        matched_threshold: float, iou greater than matched_threshold will
+            be treated as positives.
+        unmatched_threshold: float, iou smaller than unmatched_threshold will
+            be treated as negatives.
         bbox_inside_weight: unused
         positive_fraction: [0-1] float or None. if not None, we will try to
             keep ratio of pos/neg equal to positive_fraction when sample.
             if there is not enough positives, it fills the rest with negatives
         rpn_batch_size: int. sample size
-        norm_by_num_examples: bool. norm box_weight by number of examples, but I recommend to do this outside.
+        norm_by_num_examples: bool. norm box_weight by number of examples, but
+            I recommend to do this outside.
     Returns:
         labels, bbox_targets, bbox_outside_weights
     """
-    total_anchors = all_anchors.shape[0]   # 70400
 
-    # useless
-    if prune_anchor_fn is not None: # False
+    total_anchors = all_anchors.shape[0]
+    if prune_anchor_fn is not None:
         inds_inside = prune_anchor_fn(all_anchors)
         anchors = all_anchors[inds_inside, :]
         if not isinstance(matched_threshold, float):
@@ -72,36 +78,37 @@ def create_target_np(
     else:
         anchors = all_anchors
         inds_inside = None
-
-    num_inside = len(inds_inside) if inds_inside is not None else total_anchors  # 70400
-    box_ndim = all_anchors.shape[1]  # 7
-
+    num_inside = len(inds_inside) if inds_inside is not None else total_anchors
+    box_ndim = all_anchors.shape[1]
     logger.debug("total_anchors: {}".format(total_anchors))
     logger.debug("inds_inside: {}".format(num_inside))
     logger.debug("anchors.shape: {}".format(anchors.shape))
-
-    if gt_classes is None: # False
+    if gt_classes is None:
         gt_classes = np.ones([gt_boxes.shape[0]], dtype=np.int32)
-
     # Compute anchor labels:
     # label=1 is positive, 0 is negative, -1 is don't care (ignore)
     labels = np.empty((num_inside,), dtype=np.int32)
     gt_ids = np.empty((num_inside,), dtype=np.int32)
-    labels.fill(-1)           # (70400,)
-    gt_ids.fill(-1)           # (70400,)
-
+    labels.fill(-1)
+    gt_ids.fill(-1)
     if len(gt_boxes) > 0:
-        # todo: change the version of iou calculation
-        anchor_by_gt_overlap = similarity_fn(anchors, gt_boxes)      # (70400, M), iou
-        anchor_to_gt_argmax = anchor_by_gt_overlap.argmax(axis=1)    # (70400), get the index of the gt_box with the largest iou for each anchor, (iou=0 -> index:0)
-        anchor_to_gt_max = anchor_by_gt_overlap[np.arange(num_inside), anchor_to_gt_argmax]  # (70400), get the larget iou with one gt_box for each anchor
-        gt_to_anchor_argmax = anchor_by_gt_overlap.argmax(axis=0)    # (M), get the index of the anchor with the largest iou for each gt_box.
-        gt_to_anchor_max = anchor_by_gt_overlap[gt_to_anchor_argmax, np.arange(anchor_by_gt_overlap.shape[1])]  # (M,), get the largest iou with one anchor for each gt_box
-
-        # must remove gt which doesn't match any anchor. but it should be impossible in voxelization scene.
+        # Compute overlaps between the anchors and the gt boxes overlaps
+        anchor_by_gt_overlap = similarity_fn(anchors, gt_boxes)
+        # Map from anchor to gt box that has highest overlap
+        anchor_to_gt_argmax = anchor_by_gt_overlap.argmax(axis=1)
+        # For each anchor, amount of overlap with most overlapping gt box
+        anchor_to_gt_max = anchor_by_gt_overlap[
+            np.arange(num_inside), anchor_to_gt_argmax
+        ]  #
+        # Map from gt box to an anchor that has highest overlap
+        gt_to_anchor_argmax = anchor_by_gt_overlap.argmax(axis=0)
+        # For each gt box, amount of overlap with most overlapping anchor
+        gt_to_anchor_max = anchor_by_gt_overlap[
+            gt_to_anchor_argmax, np.arange(anchor_by_gt_overlap.shape[1])
+        ]
+        # must remove gt which doesn't match any anchor.
         empty_gt_mask = gt_to_anchor_max == 0
         gt_to_anchor_max[empty_gt_mask] = -1
-
         """
         if not np.all(empty_gt_mask):
             gt_to_anchor_max = gt_to_anchor_max[empty_gt_mask]
@@ -109,32 +116,32 @@ def create_target_np(
             gt_classes = gt_classes[empty_gt_mask]
             gt_boxes = gt_boxes[empty_gt_mask]
         """
-
-        anchors_with_max_overlap = np.where(anchor_by_gt_overlap == gt_to_anchor_max)[0]   # (M+m, ) Find indices of all anchors have the same max iou
-
+        # Find all anchors that share the max overlap amount
+        # (this includes many ties)
+        anchors_with_max_overlap = np.where(anchor_by_gt_overlap == gt_to_anchor_max)[0]
         # Fg label: for each gt use anchors with highest overlap
-        gt_inds_force = anchor_to_gt_argmax[anchors_with_max_overlap]   # (M+m,) gt_box indices for the M+m anchors
-        labels[anchors_with_max_overlap] = gt_classes[gt_inds_force]    # these anchors are labeled with `1` as positive
-        gt_ids[anchors_with_max_overlap] = gt_inds_force                # these anchors are saved with corresponding gt_box indices as targets
-
+        # (including ties)
+        gt_inds_force = anchor_to_gt_argmax[anchors_with_max_overlap]
+        labels[anchors_with_max_overlap] = gt_classes[gt_inds_force]
+        gt_ids[anchors_with_max_overlap] = gt_inds_force
         # Fg label: above threshold IOU
-        pos_inds = anchor_to_gt_max >= matched_threshold                # (70400), the mask
-        gt_inds = anchor_to_gt_argmax[pos_inds]                         # (x,), get indices of gt boxes as targets for those anchors with larger iou than thres
-        labels[pos_inds] = gt_classes[gt_inds]                          # labeld with 1
+        pos_inds = anchor_to_gt_max >= matched_threshold
+        gt_inds = anchor_to_gt_argmax[pos_inds]
+        labels[pos_inds] = gt_classes[gt_inds]
         gt_ids[pos_inds] = gt_inds
-
         bg_inds = np.where(anchor_to_gt_max < unmatched_threshold)[0]
     else:
-        bg_inds = np.arange(num_inside) # all set as background
-
-    fg_inds = np.where(labels > 0)[0]           # indices of positive anchors
+        # labels[:] = 0
+        bg_inds = np.arange(num_inside)
+    fg_inds = np.where(labels > 0)[0]
     fg_max_overlap = None
     if len(gt_boxes) > 0:
-        fg_max_overlap = anchor_to_gt_max[fg_inds]  # array of max iou of one positive anchor with all gt boxes
+        fg_max_overlap = anchor_to_gt_max[fg_inds]
     gt_pos_ids = gt_ids[fg_inds]
-
+    # bg_inds = np.where(anchor_to_gt_max < unmatched_threshold)[0]
+    # bg_inds = np.where(labels == 0)[0]
     # subsample positive labels if we have too many
-    if positive_fraction is not None:  # False
+    if positive_fraction is not None:
         num_fg = int(positive_fraction * rpn_batch_size)
         if len(fg_inds) > num_fg:
             disable_inds = npr.choice(
@@ -143,7 +150,9 @@ def create_target_np(
             labels[disable_inds] = -1
             fg_inds = np.where(labels > 0)[0]
 
-        # subsample negative labels if we have too many (samples with replacement, but since the set of bg inds is large most samples will not have repeats)
+        # subsample negative labels if we have too many
+        # (samples with replacement, but since the set of bg inds is large most
+        # samples will not have repeats)
         num_bg = rpn_batch_size - np.sum(labels > 0)
         # print(num_fg, num_bg, len(bg_inds) )
         if len(bg_inds) > num_bg:
@@ -155,13 +164,15 @@ def create_target_np(
             labels[:] = 0
         else:
             labels[bg_inds] = 0
-            labels[anchors_with_max_overlap] = gt_classes[gt_inds_force]  # some gt may have no iou larger than thres with anchors and be taken as bg_inds
-
-    bbox_targets = np.zeros((num_inside, box_code_size), dtype=all_anchors.dtype)   # (70400, 7)
+            # re-enable anchors_with_max_overlap
+            labels[anchors_with_max_overlap] = gt_classes[gt_inds_force]
+    bbox_targets = np.zeros((num_inside, box_code_size), dtype=all_anchors.dtype)
     if len(gt_boxes) > 0:
-        # see line52 in box_np_ops.py
-        bbox_targets[fg_inds, :] = box_encoding_fn(gt_boxes[anchor_to_gt_argmax[fg_inds], :], anchors[fg_inds, :])  # targets: (num_pos_anchor, 7)
-
+        # bbox_targets[fg_inds, :] = box_encoding_fn(
+        #     anchors[fg_inds, :], gt_boxes[anchor_to_gt_argmax[fg_inds], :])
+        bbox_targets[fg_inds, :] = box_encoding_fn(
+            gt_boxes[anchor_to_gt_argmax[fg_inds], :], anchors[fg_inds, :]
+        )
     # Bbox regression loss has the form:
     #   loss(x) = weight_outside * L(weight_inside * x)
     # Inside weights allow us to set zero loss on an element-wise basis
@@ -177,32 +188,35 @@ def create_target_np(
     # Outside weights are used to scale each element-wise loss so the final
     # average over the mini-batch is correct
     # bbox_outside_weights = np.zeros((num_inside, box_ndim), dtype=np.float32)
-    # uniform weighting of examples (given non-uniform sampling)
-
     bbox_outside_weights = np.zeros((num_inside,), dtype=all_anchors.dtype)
-
-    if norm_by_num_examples:  # False
+    # uniform weighting of examples (given non-uniform sampling)
+    if norm_by_num_examples:
         num_examples = np.sum(labels >= 0)  # neg + pos
         num_examples = np.maximum(1.0, num_examples)
         bbox_outside_weights[labels > 0] = 1.0 / num_examples
     else:
         bbox_outside_weights[labels > 0] = 1.0
+    # bbox_outside_weights[labels == 0, :] = 1.0 / num_examples
 
     # Map up to original set of anchors
-    if inds_inside is not None:   # False
+    if inds_inside is not None:
         labels = unmap(labels, total_anchors, inds_inside, fill=-1)
         bbox_targets = unmap(bbox_targets, total_anchors, inds_inside, fill=0)
-        bbox_outside_weights = unmap(bbox_outside_weights, total_anchors, inds_inside, fill=0)
-
-    ret = { "labels": labels,                             # [70400,]
-            "bbox_targets": bbox_targets,                 # [num_pos_anchors, 7]
-            "bbox_outside_weights": bbox_outside_weights, # [70400,]
-            "assigned_anchors_overlap": fg_max_overlap,   # [num_pos_anchors,]
-            "positive_gt_id": gt_pos_ids, }               # [num_pos_anchors,]
-
-    if inds_inside is not None:  # False
+        # bbox_inside_weights = unmap(
+        #     bbox_inside_weights, total_anchors, inds_inside, fill=0)
+        bbox_outside_weights = unmap(
+            bbox_outside_weights, total_anchors, inds_inside, fill=0
+        )
+    # return labels, bbox_targets, bbox_outside_weights
+    ret = {
+        "labels": labels,
+        "bbox_targets": bbox_targets,
+        "bbox_outside_weights": bbox_outside_weights,
+        "assigned_anchors_overlap": fg_max_overlap,
+        "positive_gt_id": gt_pos_ids,
+    }
+    if inds_inside is not None:
         ret["assigned_anchors_inds"] = inds_inside[fg_inds]
     else:
-        ret["assigned_anchors_inds"] = fg_inds     # [num_pos_anchors, ], indices of positive anchors
-
+        ret["assigned_anchors_inds"] = fg_inds
     return ret

@@ -1,4 +1,3 @@
-#from .scn import RCNNSpMiddleFHD, SpMiddleFHD
-from .scn_dense_4 import SpMiddleFHD
+from .scn import RCNNSpMiddleFHD, SpMiddleFHD
 
-__all__ = ["SpMiddleFHD"]
+__all__ = ["SpMiddleFHD", "RCNNSpMiddleFHD"]

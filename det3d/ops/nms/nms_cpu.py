@@ -10,7 +10,6 @@ try:
     from det3d.ops.nms.nms import (
         non_max_suppression_cpu,
         rotate_non_max_suppression_cpu,
-        IOU_weighted_rotate_non_max_suppression_cpu,
     )
 except:
     current_dir = Path(__file__).resolve().parents[0]
@@ -23,9 +22,7 @@ except:
     from det3d.ops.nms.nms import (
         non_max_suppression_cpu,
         rotate_non_max_suppression_cpu,
-        IOU_weighted_rotate_non_max_suppression_cpu,
     )
-
 
 
 def nms_cc(dets, thresh):
@@ -46,37 +43,6 @@ def rotate_nms_cc(dets, thresh):
     standup_iou = box_np_ops.iou_jit(dets_standup, dets_standup, eps=0.0)
     # print(dets_corners.shape, order.shape, standup_iou.shape)
     return rotate_non_max_suppression_cpu(dets_corners, order, standup_iou, thresh)
-
-
-def rotate_weighted_nms_cc(box,
-                           dets,
-                           thresh,
-                           iou_preds,
-                           labels,
-                           dirs,
-                            anchors=None,
-                           ):
-    scores = dets[:, 5]
-    order = scores.argsort()[::-1].astype(np.int32)  # highest->lowest
-    dets_corners = box_np_ops.center_to_corner_box2d(
-        dets[:, :2], dets[:, 2:4], dets[:, 4]
-    )
-    dets_standup = box_np_ops.corner_to_standup_nd(dets_corners)
-    standup_iou = box_np_ops.iou_jit(dets_standup, dets_standup, eps=0.0)
-
-    result = IOU_weighted_rotate_non_max_suppression_cpu(box,
-                                                         dets_corners,
-                                                         standup_iou,
-                                                         thresh,
-                                                         scores,
-                                                         iou_preds,
-                                                         labels,
-                                                         dirs,
-                                                         anchors
-                                                         )
-
-    return result
-
 
 
 @numba.jit(nopython=True)

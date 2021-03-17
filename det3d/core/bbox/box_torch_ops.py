@@ -3,7 +3,7 @@ from functools import reduce
 
 import numpy as np
 import torch
-from det3d.ops.nms.nms_cpu import rotate_nms_cc, rotate_weighted_nms_cc
+from det3d.ops.nms.nms_cpu import rotate_nms_cc
 from det3d.ops.nms.nms_gpu import nms_gpu, rotate_iou_gpu, rotate_nms_gpu
 from torch import stack as tstack
 
@@ -24,11 +24,10 @@ def second_box_encode(
     boxes, anchors, encode_angle_to_vector=False, smooth_dim=False, norm_velo=False
 ):
     """box encode for VoxelNet
-        Args:
-            boxes ([N, 7] Tensor): normal boxes: x, y, z, w, l, h, r.
-            anchors ([N, 7] Tensor): anchors.
+    Args:
+        boxes ([N, 7] Tensor): normal boxes: x, y, z, l, w, h, r
+        anchors ([N, 7] Tensor): anchors
     """
-    
     box_ndim = anchors.shape[-1]
 
     if box_ndim == 7:
@@ -93,16 +92,17 @@ def second_box_decode(
     """
     box_ndim = anchors.shape[-1]
 
-    if box_ndim == 9:  # False
+    if box_ndim == 9:
         xa, ya, za, wa, la, ha, vxa, vya, ra = torch.split(anchors, 1, dim=-1)
         if encode_angle_to_vector:
-            xt, yt, zt, wt, lt, ht, vxt, vyt, rtx, rty = torch.split(box_encodings, 1, dim=-1)
+            xt, yt, zt, wt, lt, ht, vxt, vyt, rtx, rty = torch.split(
+                box_encodings, 1, dim=-1
+            )
         else:
             xt, yt, zt, wt, lt, ht, vxt, vyt, rt = torch.split(box_encodings, 1, dim=-1)
-
     elif box_ndim == 7:
         xa, ya, za, wa, la, ha, ra = torch.split(anchors, 1, dim=-1)
-        if encode_angle_to_vector: # False
+        if encode_angle_to_vector:
             xt, yt, zt, wt, lt, ht, rtx, rty = torch.split(box_encodings, 1, dim=-1)
         else:
             xt, yt, zt, wt, lt, ht, rt = torch.split(box_encodings, 1, dim=-1)
@@ -114,17 +114,18 @@ def second_box_decode(
 
     ret = [xg, yg, zg]
 
-    if smooth_dim:    # False
+    if smooth_dim:
         lg = (lt + 1) * la
         wg = (wt + 1) * wa
         hg = (ht + 1) * ha
     else:
+
         lg = torch.exp(lt) * la
         wg = torch.exp(wt) * wa
         hg = torch.exp(ht) * ha
     ret.extend([wg, lg, hg])
 
-    if encode_angle_to_vector:  # False
+    if encode_angle_to_vector:
         rax = torch.cos(ra)
         ray = torch.sin(ra)
         rgx = rtx + rax
@@ -133,7 +134,7 @@ def second_box_decode(
     else:
         rg = rt + ra
 
-    if box_ndim > 7:   # False
+    if box_ndim > 7:
         if norm_velo:
             vxg = vxt * diagonal + vxa
             vyg = vyt * diagonal + vya
@@ -546,53 +547,3 @@ def rotate_nms(
         return indices[keep]
     else:
         return torch.from_numpy(keep).long().to(rbboxes.device)
-
-def rotate_weighted_nms(
-    box_preds,
-    rbboxes,
-    dir_labels,
-    labels_preds,
-    scores,
-    iou_preds,
-    anchors,
-    pre_max_size=None,
-    post_max_size=None,
-    iou_threshold=0.5,
-):
-
-    if pre_max_size is not None:
-        num_keeped_scores = scores.shape[0]
-        pre_max_size = min(num_keeped_scores, pre_max_size)
-        scores, indices = torch.topk(scores, k=pre_max_size)
-        rbboxes = rbboxes[indices]
-        iou_preds = iou_preds[indices]
-        dir_labels = dir_labels[indices]
-        labels_preds = labels_preds[indices]
-        box_preds = box_preds[indices]
-        anchors = anchors[indices]
-
-    dets = torch.cat([rbboxes, scores.unsqueeze(-1)], dim=1)
-    dets_np = dets.data.cpu().numpy()
-    iou_preds_np = iou_preds.data.cpu().numpy()
-    dir_labels_np = dir_labels.cpu().numpy()
-    labels_preds_np = labels_preds.cpu().numpy()
-    box_preds_np = box_preds.cpu().numpy()
-    scores_np = scores.cpu().numpy()
-    anchors_np = anchors.cpu().numpy()
-
-    if len(dets_np) == 0:
-        box_ret_np,  dir_ret_list, labels_ret_list, scores_ret_list= [np.array([], dtype=np.int64)] * 4
-    else:
-        nms_result = rotate_weighted_nms_cc(box_preds_np,
-                                            dets_np,
-                                            iou_threshold,
-                                            iou_preds_np,
-                                            labels_preds_np,
-                                            dir_labels_np,
-                                            anchors_np,
-                                            )
-        box_ret_np = np.array(nms_result[0])
-        scores_ret_np = np.array(nms_result[1])
-        labels_ret_np = np.array(nms_result[2])
-        dir_ret_np = np.array(nms_result[3])
-    return torch.from_numpy(box_ret_np).cuda(), torch.from_numpy(dir_ret_np).cuda(), torch.from_numpy(labels_ret_np).cuda(), torch.from_numpy(scores_ret_np).cuda()

@@ -56,7 +56,7 @@ def load_state_dict(module, state_dict, strict=False, logger=None):
         if param.size() != own_state[name].size():
             shape_mismatch_pairs.append([name, own_state[name].size(), param.size()])
             continue
-        own_state[name].copy_(param)   # loading params here
+        own_state[name].copy_(param)
 
     all_missing_keys = set(own_state.keys()) - set(state_dict.keys())
     # ignore "num_batches_tracked" of BN layers
@@ -64,11 +64,15 @@ def load_state_dict(module, state_dict, strict=False, logger=None):
 
     err_msg = []
     if unexpected_keys:
-        err_msg.append("unexpected key in source state_dict: {}\n".format(", ".join(unexpected_keys)))
-
+        err_msg.append(
+            "unexpected key in source state_dict: {}\n".format(
+                ", ".join(unexpected_keys)
+            )
+        )
     if missing_keys:
-        err_msg.append("missing keys in source state_dict: {}\n".format(", ".join(missing_keys)))
-
+        err_msg.append(
+            "missing keys in source state_dict: {}\n".format(", ".join(missing_keys))
+        )
     if shape_mismatch_pairs:
         mismatch_info = "these keys have mismatched shape:\n"
         header = ["key", "expected shape", "loaded shape"]
@@ -121,7 +125,8 @@ def load_checkpoint(model, filename, map_location=None, strict=False, logger=Non
         model (Module): Module to load checkpoint.
         filename (str): Either a filepath or URL or modelzoo://xxxxxxx.
         map_location (str): Same as :func:`torch.load`.
-        strict (bool): Whether to allow different params for the model and checkpoint.
+        strict (bool): Whether to allow different params for the model and
+            checkpoint.
         logger (:mod:`logging.Logger` or None): The logger for error message.
 
     Returns:
@@ -149,7 +154,6 @@ def load_checkpoint(model, filename, map_location=None, strict=False, logger=Non
         if not osp.isfile(filename):
             raise IOError("{} is not a checkpoint file".format(filename))
         checkpoint = torch.load(filename, map_location=map_location)
-
     # get state_dict from checkpoint
     if isinstance(checkpoint, OrderedDict):
         state_dict = checkpoint
@@ -157,17 +161,14 @@ def load_checkpoint(model, filename, map_location=None, strict=False, logger=Non
         state_dict = checkpoint["state_dict"]
     else:
         raise RuntimeError("No state_dict found in checkpoint file {}".format(filename))
-
     # strip prefix of state_dict
     if list(state_dict.keys())[0].startswith("module."):
         state_dict = {k[7:]: v for k, v in checkpoint["state_dict"].items()}
-
     # load state_dict
     if hasattr(model, "module"):
         load_state_dict(model.module, state_dict, strict, logger)
     else:
         load_state_dict(model, state_dict, strict, logger)
-
     return checkpoint
 
 

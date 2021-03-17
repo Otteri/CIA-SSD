@@ -38,7 +38,7 @@ def change_detection_range(model_config, new_range):
 
 def get_downsample_factor(model_config):
     neck_cfg = model_config["neck"]
-    downsample_factor = np.prod(neck_cfg.get("ds_layer_strides", [1]))   # 1
+    downsample_factor = np.prod(neck_cfg.get("ds_layer_strides", [1]))
     if len(neck_cfg.get("us_layer_strides", [])) > 0:
         downsample_factor /= neck_cfg.get("us_layer_strides", [])[-1]
     backbone_cfg = model_config["backbone"]

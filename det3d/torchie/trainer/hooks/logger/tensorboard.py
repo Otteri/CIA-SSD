@@ -17,12 +17,18 @@ class TensorboardLoggerHook(LoggerHook):
             try:
                 from torch.utils.tensorboard import SummaryWriter
             except ImportError:
-                raise ImportError('Please run "pip install future tensorboard" to install the dependencies to use torch.utils.tensorboard (applicable to PyTorch 1.1 or higher)')
+                raise ImportError(
+                    'Please run "pip install future tensorboard" to install '
+                    "the dependencies to use torch.utils.tensorboard "
+                    "(applicable to PyTorch 1.1 or higher)"
+                )
         else:
             try:
                 from tensorboardX import SummaryWriter
             except ImportError:
-                raise ImportError("Please install tensorboardX to use " "TensorboardLoggerHook.")
+                raise ImportError(
+                    "Please install tensorboardX to use " "TensorboardLoggerHook."
+                )
 
         if self.log_dir is None:
             self.log_dir = osp.join(trainer.work_dir, "tf_logs")
@@ -38,7 +44,9 @@ class TensorboardLoggerHook(LoggerHook):
             if isinstance(record, str):
                 self.writer.add_text(tag, record, trainer.iter)
             else:
-                self.writer.add_scalar(tag, trainer.log_buffer.output[var], trainer.iter)
+                self.writer.add_scalar(
+                    tag, trainer.log_buffer.output[var], trainer.iter
+                )
 
     @master_only
     def after_run(self, trainer):

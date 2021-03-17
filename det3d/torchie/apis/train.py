@@ -4,14 +4,11 @@ import re
 from collections import OrderedDict, defaultdict
 from functools import partial
 
-import apex
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
-
+from det3d.builder import build_optimizer as build_fastai_optimizer
 from det3d.builder import _create_learning_rate_scheduler
 
-# from det3d.core.evaluation import KittiDistEvalmAPHook, KittiEvalmAPHookV2
 # from det3d.datasets.kitti.eval_hooks import KittiDistEvalmAPHook, KittiEvalmAPHookV2
 from det3d.core import DistOptimizerHook
 from det3d.datasets import DATASETS, build_dataloader
@@ -20,11 +17,8 @@ from det3d.torchie.trainer import DistSamplerSeedHook, Trainer, obj_from_dict
 from det3d.utils.print_utils import metric_to_str
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
-from det3d.torchie.parallel import collate, collate_kitti
 
 from .env import get_root_logger
-
-
 
 
 def example_convert_to_torch(example, dtype=torch.float32, device=None) -> dict:
@@ -86,18 +80,26 @@ def example_convert_to_torch(example, dtype=torch.float32, device=None) -> dict:
 
 
 def example_to_device(example, device=None, non_blocking=False) -> dict:
-    '''Input data transferred from numpy to torch before feed to model'''
     assert device is not None
+
     example_torch = {}
     float_names = ["voxels", "bev_map"]
     for k, v in example.items():
         if k in ["anchors", "anchors_mask", "reg_targets", "reg_weights", "labels"]:
             example_torch[k] = [res.to(device, non_blocking=non_blocking) for res in v]
-        elif k in ["voxels", "bev_map", "coordinates", "num_points", "points", "num_voxels",]:
+        elif k in [
+            "voxels",
+            "bev_map",
+            "coordinates",
+            "num_points",
+            "points",
+            "num_voxels",
+        ]:
             example_torch[k] = v.to(device, non_blocking=non_blocking)
         elif k == "calib":
             calib = {}
             for k1, v1 in v.items():
+                # calib[k1] = torch.tensor(v1, dtype=dtype, device=device)
                 calib[k1] = torch.tensor(v1).to(device, non_blocking=non_blocking)
             example_torch[k] = calib
         else:
@@ -126,6 +128,7 @@ def parse_losses(losses):
 
 
 def parse_second_losses(losses):
+
     log_vars = OrderedDict()
     loss = sum(losses["loss"])
     for loss_name, loss_value in losses.items():
@@ -138,7 +141,6 @@ def parse_second_losses(losses):
 
 
 def batch_processor(model, data, train_mode, **kwargs):
-    '''Feed data to model for inference and get losses.'''
 
     if "local_rank" in kwargs:
         device = torch.device(kwargs["local_rank"])
@@ -149,10 +151,14 @@ def batch_processor(model, data, train_mode, **kwargs):
     example = example_to_device(data, device, non_blocking=False)
 
     del data
+
     if train_mode:
         losses = model(example, return_loss=True)
         loss, log_vars = parse_second_losses(losses)
-        outputs = dict(loss=loss, log_vars=log_vars, num_samples=len(example["anchors"][0]))
+
+        outputs = dict(
+            loss=loss, log_vars=log_vars, num_samples=len(example["anchors"][0])
+        )
         return outputs
     else:
         return model(example, return_loss=False)
@@ -164,15 +170,6 @@ def flatten_model(m):
 
 def get_layer_groups(m):
     return [nn.Sequential(*flatten_model(m))]
-
-
-def build_one_cycle_optimizer(model, optimizer_config):
-    if optimizer_config.fixed_wd:   # True
-        optimizer_func = partial(torch.optim.Adam, betas=(0.9, 0.99), amsgrad=optimizer_config.amsgrad)
-    else:
-        optimizer_func = partial(torch.optim.Adam, amsgrad=optimizer_config.amsgrad)  # todo: optimizer_cfg -> optimizer_config
-    optimizer = OptimWrapper.create(optimizer_func, 3e-3, get_layer_groups(model), wd=optimizer_config.wd, true_wd=optimizer_config.fixed_wd, bn_wd=True,)
-    return optimizer
 
 
 def build_optimizer(model, optimizer_cfg):
@@ -251,35 +248,38 @@ def build_optimizer(model, optimizer_cfg):
 
 
 def train_detector(model, dataset, cfg, distributed=False, validate=False, logger=None):
-    # build logger
     if logger is None:
         logger = get_root_logger(cfg.log_level)
 
-    # build dataloaders
+    # start training
+    # prepare data loaders
     dataset = dataset if isinstance(dataset, (list, tuple)) else [dataset]
-    '''
-    batch_size = cfg.data.samples_per_gpu
-    num_workers = cfg.data.workers_per_gpu
-    data_loaders = [DataLoader(ds, batch_size=batch_size, sampler=None, shuffle=True, num_workers=num_workers, collate_fn=collate_kitti, pin_memory=False,) for ds in dataset]  # TODO change pin_memory
-    '''
     data_loaders = [
-        build_dataloader(ds, cfg.data.samples_per_gpu, cfg.data.workers_per_gpu, dist=distributed)
+        build_dataloader(
+            ds, cfg.data.samples_per_gpu, cfg.data.workers_per_gpu, dist=distributed
+        )
         for ds in dataset
     ]
 
-    # build optimizer and lr_scheduler
     total_steps = cfg.total_epochs * len(data_loaders[0])
-    if cfg.lr_config.type == "one_cycle":
-        optimizer = build_one_cycle_optimizer(model, cfg.optimizer)
-        lr_scheduler = _create_learning_rate_scheduler(optimizer, cfg.lr_config, total_steps) # todo: will not register lr_hook in trainer
-        cfg.lr_config = None
-    else:                     # todo: we can add our own optimizer here
+    # print(f"total_steps: {total_steps}")
+
+    if hasattr(cfg.optimizer, 'TYPE'):
+        assert cfg.optimizer.TYPE in ('rms_prop', 'momentum', 'adam')
+        optimizer = build_fastai_optimizer(cfg.optimizer, model)
+    else:
+        assert hasattr(cfg.optimizer, 'type')
         optimizer = build_optimizer(model, cfg.optimizer)
+    if hasattr(cfg.lr_config, 'type'):
+        lr_scheduler = _create_learning_rate_scheduler(
+            optimizer, cfg.lr_config, total_steps
+        )
+        cfg.lr_config = None
+    else:
         lr_scheduler = None
 
     # put model on gpus
     if distributed:
-        model = apex.parallel.convert_syncbn_model(model)
         model = DistributedDataParallel(
             model.cuda(cfg.local_rank),
             device_ids=[cfg.local_rank],
@@ -289,10 +289,12 @@ def train_detector(model, dataset, cfg, distributed=False, validate=False, logge
         )
     else:
         model = model.cuda()
+
     logger.info(f"model structure: {model}")
 
-    # build trainer
-    trainer = Trainer(model, batch_processor, optimizer, lr_scheduler, cfg.work_dir, cfg.log_level)
+    trainer = Trainer(
+        model, batch_processor, optimizer, lr_scheduler, cfg.work_dir, cfg.log_level
+    )
 
     if distributed:
         optimizer_config = DistOptimizerHook(**cfg.optimizer_config)
@@ -300,8 +302,9 @@ def train_detector(model, dataset, cfg, distributed=False, validate=False, logge
         optimizer_config = cfg.optimizer_config
 
     # register hooks
-    #import ipdb; ipdb.set_trace()
-    trainer.register_training_hooks(cfg.lr_config, optimizer_config, cfg.checkpoint_config, cfg.log_config)
+    trainer.register_training_hooks(
+        cfg.lr_config, optimizer_config, cfg.checkpoint_config, cfg.log_config
+    )
 
     if distributed:
         trainer.register_hook(DistSamplerSeedHook())
@@ -311,9 +314,9 @@ def train_detector(model, dataset, cfg, distributed=False, validate=False, logge
     #     val_dataset_cfg = cfg.data.val
     #     eval_cfg = cfg.get('evaluation', {})
     #     dataset_type = DATASETS.get(val_dataset_cfg.type)
-    #     trainer.register_hook(KittiEvalmAPHookV2(val_dataset_cfg, **eval_cfg))
+    #     trainer.register_hook(
+    #         KittiEvalmAPHookV2(val_dataset_cfg, **eval_cfg))
 
-    # training setting
     if cfg.resume_from:
         trainer.resume(cfg.resume_from)
     elif cfg.load_from:

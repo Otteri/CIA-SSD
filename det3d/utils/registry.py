@@ -9,7 +9,9 @@ class Registry(object):
         self._module_dict = dict()
 
     def __repr__(self):
-        format_str = self.__class__.__name__ + "(name={}, items={})".format(self._name, list(self._module_dict.keys()))
+        format_str = self.__class__.__name__ + "(name={}, items={})".format(
+            self._name, list(self._module_dict.keys())
+        )
         return format_str
 
     @property

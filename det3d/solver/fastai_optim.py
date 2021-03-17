@@ -163,13 +163,9 @@ class OptimWrapper:
                 self.opt.param_groups[1::2],
             ):
                 for p in pg1["params"]:
-                    if p.requires_grad is False:     # todo: added here
-                        continue
                     p.data.mul_(1 - wd * lr)
                 if self.bn_wd:
                     for p in pg2["params"]:
-                        if p.requires_grad is False:  # todo: added here
-                            continue
                         p.data.mul_(1 - wd * lr)
             self.set_val("weight_decay", listify(0, self._wd))
         self.opt.step()
