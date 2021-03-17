@@ -1,35 +1,14 @@
-## CIA-SSD: Confident IoU-Aware Single Stage Object Detector From Point Cloud (AAAI 2021) [[Paper]](https://arxiv.org/abs/2012.03015)
+## CIA-SSD: Updated version
 
 Currently state-of-the-art single-stage object detector from point cloud on KITTI Benchmark, running with 32FPS.
 
-**Authors**: [Wu Zheng](https://github.com/Vegeta2020), Weiliang Tang, Sijin Chen, [Li Jiang](https://github.com/llijiang), Chi-Wing Fu.
-
-## AP on KITTI Dataset
-
-Val Split (11 recall points):
-```
-Car  AP:98.85, 90.20, 89.58
-bev  AP:90.51, 88.86, 87.95
-3d   AP:90.00, 79.86, 78.83
-aos  AP:98.77, 89.99, 89.24
-Car  AP(Average Precision)@0.70, 0.50, 0.50:
-bbox AP:98.85, 90.20, 89.58
-bev  AP:98.92, 90.29, 89.81
-3d   AP:99.00, 90.22, 89.70
-aos  AP:98.77, 89.99, 89.24
-```
-
-Test Split: [Submission link](http://www.cvlibs.net/datasets/kitti/eval_object_detail.php?&result=b4e17f75f5baa917c4f250e832aace71682c3a84)
-
-You may download the pre-trained model [here](https://drive.google.com/file/d/1SElYNQCsr4gctqLxmB6Fc4t7Ed8SgBgs/view?usp=sharing), which is trained on the train split (3712 samples).
-
 ## Pipeline
-
-![pipeline](https://github.com/Vegeta2020/CIA-SSD/blob/master/pictures/pipeline.png)
-The pipeline of our proposed Confident IoU-Aware Single-Stage object Detector (CIA-SSD). First, we encode the input point cloud (a) with a sparse convolutional network denoted by SPConvNet (b), followed by our spatial-semantic feature aggregation (SSFA) module (c) for robust feature extraction, in which an attentional fusion module (d) is adopted to adaptively fuse the spatial and semantic features. Then, the multi-task head (e) realizes the object classification and localization, with our introduced confidence function (CF) for confidence rectification. In the end, we further formulate the distance-variant IoU-weighted NMS (DI-NMS) for post-processing.
+![pipeline](images/pipeline.png)
+First, input point cloud (a) is encoded with a sparse convolutional network denoted by SPConvNet (b). Then,spatial-semantic feature aggregation (SSFA) module (c) fuses the extracted spatial and semantic features using attentional fusion module (d). After this, the multi-task head (e) realizes the object classification and localization using a confidence function. In the end, the distance-variant IoU-weighted NMS (DI-NMS) is formulated for post-processing.
+For more detailed information please refer this [Paper](https://arxiv.org/abs/2012.03015).
 
 ## Installation
-
+First, install [Det3D](https://github.com/Otteri/Det3D/blob/master/INSTALLATION.md) dependencies: [spconv](https://github.com/poodarchu/spconv) and [nuscenes-devkit](https://github.com/nutonomy/nuscenes-devkit). Then, proceed to install CIA-SSD & Det3D:
 ```bash
 $ git clone --recursive git@github.com:Otteri/CIA-SSD.git
 $ cd ./CIA-SSD/Det3D/det3d/core/iou3d # TODO: fix this, may not work anymore
@@ -37,53 +16,27 @@ $ python setup.py install
 $ cd ./CIA-SSD
 $ python setup.py build develop
 ```
-Please follow Det3D for installation of other [related packages](https://github.com/poodarchu/Det3D/blob/master/INSTALLATION.md) and [data preparation](https://github.com/poodarchu/Det3D/blob/master/GETTING_STARTED.md).
 
-## Train and Eval
-
+### Getting training data
+We need data for training. Please, refer Det3D [data preparation guide](https://github.com/Otteri/Det3D/blob/master/GETTING_STARTED.md). Let's consider KITTI dataset. Download the [KITTI data](http://www.cvlibs.net/datasets/kitti/eval_object.php?obj_benchmark=3d) and order it as guided. After this, we can use Det3D scripts to prepare the data for us:
 ```
-Use the scripts provided with Det3D:
+python Det3D/tools/create_data.py kitti_data_prep --root_path="<KITTI_DATASET_ROOT>"
+```
+After data preparation, you may want to check that the model configuration is okay:
+`examples/second/configs/kitti_car_vfev3_spmiddlefhd_rpn1_mghead_syncbn.py`
+### Training & Evaluation
+Now you should be able to train the model (single GPU):
+```
 python Det3D/tools/train.py <config>
-
-python Det3D/tools/test.py <config>
-
-/home/cosmo/code/cia-ssd/CIA-SSD/examples/second/configs/kitti_car_vfev3_spmiddlefhd_rpn1_mghead_syncbn.py
-
+```
+Evaluation scores will be printed when training finishes. However, you can also evaluate the model whenever you like with:
+```
+python Det3D/tools/test.py <config> <checkpoint>
 ```
 
-Configure the model in
-```bash
-$ /CIA-SSD/examples/second/configs/kitti_car_vfev3_spmiddlefhd_rpn1_mghead_syncbn.py
-```
-
-Please use our code to generate ground truth data:
-```bash
-$ python ./CIA-SSD/tools/create_data.py
-```
-
-Train the CIA-SSD:
-```bash
-$ cd ./CIA-SSD/tools
-$ python train.py  # Single GPU
-$ python -m torch.distributed.launch --nproc_per_node=4 train.py   # Multiple GPU
-```
-
-Evaluate the CIA-SSD:
-```bash
-$ cd ./CIA-SSD/tools
-$ python test.py
-```
-
-## Citation
-If you find this work useful in your research, please star our repository and consider citing:
-```
-@inproceedings{zheng2020ciassd,
-  title={CIA-SSD: Confident IoU-Aware Single-Stage Object Detector From Point Cloud},
-  author={Wu Zheng, Weiliang Tang, Sijin Chen, Li Jiang, Chi-Wing Fu},
-  booktitle={AAAI},
-  year={2021}
-}
-```
+## Acknowledgements
+- [CIA-SSD](https://github.com/Vegeta2020/CIA-SSD)
+- [Det3D](https://github.com/poodarchu/Det3D)
 
 ## License
 This codebase is released under the Apache 2.0 license.
