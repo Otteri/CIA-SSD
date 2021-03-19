@@ -8,7 +8,9 @@ from det3d.utils.config_tool import get_downsample_factor
 norm_cfg = None
 
 tasks = [
-    dict(num_class=1, class_names=["Car",],),
+    dict(num_class=1, class_names=["Car"]),
+    dict(num_class=1, class_names=["Pedestrian"]),
+    dict(num_class=1, class_names=["Cyclist"]),
 ]
 
 class_names = list(itertools.chain(*[t["class_names"] for t in tasks]))
@@ -26,6 +28,24 @@ target_assigner = dict(
             unmatched_threshold=0.45,
             class_name="Car",
         ),
+        dict(
+            type="anchor_generator_range",
+            sizes=[0.6, 0.8, 1.73],
+            anchor_ranges=[0, -40.0, -0.6, 70.4, 40.0, -0.6],
+            rotations=[0, 1.57],
+            matched_threshold=0.4,
+            unmatched_threshold=0.2,
+            class_name="Pedestrian",
+        ),
+        dict(
+            type="anchor_generator_range",
+            sizes=[0.6, 1.76, 1.73],
+            anchor_ranges=[0, -40.0, -0.6, 70.4, 40.0, -0.6],
+            rotations=[0, 1.57],
+            matched_threshold=0.4,
+            unmatched_threshold=0.2,
+            class_name="Cyclist",
+        ),
     ],
     sample_positive_fraction=-1,
     sample_size=512,
@@ -40,23 +60,25 @@ box_coder = dict(
 
 # model settings
 model = dict(
-    type="PointPillars",
+    type="VoxelNet",
     pretrained=None,
     reader=dict(
-        type="PillarFeatureNet",
-        num_filters=[64],
-        with_distance=False,
+        type="VoxelFeatureExtractorV3",
+        # type='SimpleVoxel',
+        num_input_features=4,
         norm_cfg=norm_cfg,
     ),
-    backbone=dict(type="PointPillarsScatter", ds_factor=1, norm_cfg=norm_cfg,),
+    backbone=dict(
+        type="SpMiddleFHD", num_input_features=4, ds_factor=8, norm_cfg=norm_cfg,
+    ),
     neck=dict(
-        type="RPN",
-        layer_nums=[3, 5, 5],
-        ds_layer_strides=[2, 2, 2],
-        ds_num_filters=[64, 128, 256],
-        us_layer_strides=[1, 2, 4],
-        us_num_filters=[128, 128, 128],
-        num_input_features=64,
+        type="SSFA",
+        layer_nums=[5,],
+        ds_layer_strides=[1,],
+        ds_num_filters=[128,],
+        us_layer_strides=[1,],
+        us_num_filters=[128,],
+        num_input_features=128,
         norm_cfg=norm_cfg,
         logger=logging.getLogger("RPN"),
     ),
@@ -64,7 +86,7 @@ model = dict(
         # type='RPNHead',
         type="MultiGroupHead",
         mode="3d",
-        in_channels=sum([128, 128, 128]),  # this is linked to 'neck' us_num_filters
+        in_channels=sum([128,]),
         norm_cfg=norm_cfg,
         tasks=tasks,
         weights=[1,],
@@ -96,8 +118,8 @@ assigner = dict(
     box_coder=box_coder,
     target_assigner=target_assigner,
     out_size_factor=get_downsample_factor(model),
+    debug=False,
 )
-
 
 train_cfg = dict(assigner=assigner)
 
@@ -106,25 +128,25 @@ test_cfg = dict(
         use_rotate_nms=True,
         use_multi_class_nms=False,
         nms_pre_max_size=1000,
-        nms_post_max_size=300,
-        nms_iou_threshold=0.5,
+        nms_post_max_size=100,
+        nms_iou_threshold=0.01,
     ),
-    score_threshold=0.05,
+    score_threshold=0.3,
     post_center_limit_range=[0, -40.0, -5.0, 70.4, 40.0, 5.0],
     max_per_img=100,
 )
 
 # dataset settings
 dataset_type = "KittiDataset"
-data_root = "/mnt/proj50/zhengwu/KITTI/object"
+data_root = "/home/cosmo/data/KITTI_DATASET"
 
 db_sampler = dict(
     type="GT-AUG",
     enable=True,
-    db_info_path="/mnt/proj50/zhengwu/KITTI/object/dbinfos_train.pkl",
-    sample_groups=[dict(Car=15,),],
+    db_info_path=data_root + "/dbinfos_train.pkl",
+    sample_groups=[dict(Car=15), dict(Pedestrian=8), dict(Cyclist=8),],
     db_prep_steps=[
-        dict(filter_by_min_num_points=dict(Car=5,)),
+        dict(filter_by_min_num_points=dict(Car=5, Pedestrian=5, Cyclist=5)),
         dict(filter_by_difficulty=[-1],),
     ],
     global_random_rotation_range_per_object=[0, 0],
@@ -133,9 +155,9 @@ db_sampler = dict(
 train_preprocessor = dict(
     mode="train",
     shuffle_points=True,
-    gt_loc_noise=[0.25, 0.25, 0.25],
-    gt_rot_noise=[-0.15707963267, 0.15707963267],
-    global_rot_noise=[-0.78539816, 0.78539816],
+    gt_loc_noise=[1.0, 1.0, 0.5],
+    gt_rot_noise=[-0.785, 0.785],
+    global_rot_noise=[-0.785, 0.785],
     global_scale_noise=[0.95, 1.05],
     global_rot_per_obj_range=[0, 0],
     global_trans_noise=[0.0, 0.0, 0.0],
@@ -155,19 +177,11 @@ val_preprocessor = dict(
     remove_unknown_examples=False,
 )
 
-"""
 voxel_generator = dict(
     range=[0, -40.0, -3.0, 70.4, 40.0, 1.0],
-    voxel_size=[0.2, 0.2, 4.0],
-    max_points_in_voxel=100,
-    max_voxel_num=12000,
-)
-"""
-voxel_generator = dict(
-    range=[0, -39.68, -3, 69.12, 39.68, 1],
-    voxel_size=[0.16, 0.16, 4.0],
-    max_points_in_voxel=100,
-    max_voxel_num=12000,
+    voxel_size=[0.05, 0.05, 0.1],
+    max_points_in_voxel=5,
+    max_voxel_num=40000,
 )
 
 train_pipeline = [
@@ -188,13 +202,13 @@ test_pipeline = [
     dict(type="Reformat"),
 ]
 
-train_anno = "/mnt/proj50/zhengwu/KITTI/object/kitti_infos_train.pkl"
-val_anno = "/mnt/proj50/zhengwu/KITTI/object/kitti_infos_val.pkl"
+train_anno = data_root + "/kitti_infos_train.pkl"
+val_anno = data_root + "/kitti_infos_val.pkl"
 test_anno = None
 
 data = dict(
-    samples_per_gpu=3,
-    workers_per_gpu=3,
+    samples_per_gpu=4, # default 6
+    workers_per_gpu=2, # default 6
     train=dict(
         type=dataset_type,
         root_path=data_root,
@@ -221,27 +235,18 @@ data = dict(
     ),
 )
 
-# optimizer = dict(type='SGD', lr=0.0002, momentum=0.9, weight_decay=0.0001)
-# optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
-# # learning policy
-# lr_config = dict(
-#     type='multinomial',
-#     policy='step',
-#     warmup='linear',
-#     warmup_iters=500,
-#     warmup_ratio=1.0 / 3,
-#     step=[15, 30, 45, 60, 75, 90, 105, 120, 135, 150])
-
-# optimizer
 optimizer = dict(
-    type="adam", amsgrad=0.0, wd=0.01, fixed_wd=True, moving_average=False,
+    TYPE="adam",
+    VALUE=dict(amsgrad=0.0, wd=0.01),
+    FIXED_WD=True,
+    MOVING_AVERAGE=False,
 )
 
 """training hooks """
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy in training hooks
 lr_config = dict(
-    type="one_cycle", lr_max=3e-3, moms=[0.95, 0.85], div_factor=10.0, pct_start=0.4,
+    type="one_cycle", lr_max=0.003, moms=[0.95, 0.85], div_factor=10.0, pct_start=0.4,
 )
 
 checkpoint_config = dict(interval=1)
@@ -259,7 +264,7 @@ total_epochs = 100
 device_ids = range(8)
 dist_params = dict(backend="nccl", init_method="env://")
 log_level = "INFO"
-work_dir = "/mnt/proj50/zhengwu/saved_model/KITTI/megvii_reduced/test_pointpillar_v0.1"
+work_dir = "../../data/CIA-SSD-ALL/"
 load_from = None
 resume_from = None
 workflow = [("train", 5), ("val", 1)]

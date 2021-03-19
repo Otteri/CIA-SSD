@@ -194,7 +194,7 @@ val_anno = data_root_prefix + "/kitti_infos_val.pkl"
 test_anno = data_root_prefix + "/kitti_infos_test.pkl"
 
 data = dict(
-    samples_per_gpu=my_paras['batch_size'],  # batch_size: 4
+    samples_per_gpu=4,  # batch size, default 4
     workers_per_gpu=2,  # default: 2
     train=dict(
         type=dataset_type,
@@ -236,10 +236,10 @@ log_config = dict(interval=10,hooks=[dict(type="TextLoggerHook"),],) # dict(type
 
 # runtime settings
 total_epochs = 60
-device_ids = range(8)
+#device_ids = range(8)
 dist_params = dict(backend="nccl", init_method="env://")
 log_level = "INFO"
-work_dir = "../../data/CIA-SSD-ALL/"
+work_dir = "data/CIA-SSD-CAR/"
 load_from = None
 resume_from = None
 workflow = [("train", 60), ("val", 1)]  # todo: only length of workflow has been used

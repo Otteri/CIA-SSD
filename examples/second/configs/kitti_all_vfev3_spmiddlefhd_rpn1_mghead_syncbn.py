@@ -72,7 +72,7 @@ model = dict(
         type="SpMiddleFHD", num_input_features=4, ds_factor=8, norm_cfg=norm_cfg,
     ),
     neck=dict(
-        type="RPN",
+        type="SSFA",
         layer_nums=[5,],
         ds_layer_strides=[1,],
         ds_num_filters=[128,],
@@ -138,12 +138,12 @@ test_cfg = dict(
 
 # dataset settings
 dataset_type = "KittiDataset"
-data_root = "/mnt/proj50/zhengwu/KITTI/object"
+data_root = "/home/cosmo/data/KITTI_DATASET"
 
 db_sampler = dict(
     type="GT-AUG",
     enable=True,
-    db_info_path="/mnt/proj50/zhengwu/KITTI/object/dbinfos_train.pkl",
+    db_info_path=data_root + "/dbinfos_train.pkl",
     sample_groups=[dict(Car=15), dict(Pedestrian=8), dict(Cyclist=8),],
     db_prep_steps=[
         dict(filter_by_min_num_points=dict(Car=5, Pedestrian=5, Cyclist=5)),
@@ -202,13 +202,13 @@ test_pipeline = [
     dict(type="Reformat"),
 ]
 
-train_anno = "/mnt/proj50/zhengwu/KITTI/object/kitti_infos_train.pkl"
-val_anno = "/mnt/proj50/zhengwu/KITTI/object/kitti_infos_val.pkl"
+train_anno = data_root + "/kitti_infos_train.pkl"
+val_anno = data_root + "/kitti_infos_val.pkl"
 test_anno = None
 
 data = dict(
-    samples_per_gpu=6,
-    workers_per_gpu=6,
+    samples_per_gpu=4, # default 6
+    workers_per_gpu=2, # default 6
     train=dict(
         type=dataset_type,
         root_path=data_root,
@@ -235,10 +235,13 @@ data = dict(
     ),
 )
 
-# optimizer
 optimizer = dict(
-    type="adam", amsgrad=0.0, wd=0.01, fixed_wd=True, moving_average=False,
+    TYPE="adam",
+    VALUE=dict(amsgrad=0.0, wd=0.01),
+    FIXED_WD=True,
+    MOVING_AVERAGE=False,
 )
+
 """training hooks """
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 # learning policy in training hooks
@@ -261,7 +264,7 @@ total_epochs = 100
 device_ids = range(8)
 dist_params = dict(backend="nccl", init_method="env://")
 log_level = "INFO"
-work_dir = "/mnt/proj50/zhengwu/saved_model/KITTI/megvii_reduced/x"
+work_dir = "../../data/CIA-SSD-ALL/" #"/home/cosmo/data/models/CIA-SSD-all/" # relative to script location in tools
 load_from = None
 resume_from = None
 workflow = [("train", 5), ("val", 1)]
