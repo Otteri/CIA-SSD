@@ -109,3 +109,5 @@ train.sh
 ./megdet3d/version.py
 
 *.pyc
+
+save/KITTI/*
