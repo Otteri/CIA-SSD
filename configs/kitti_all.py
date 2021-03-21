@@ -10,7 +10,7 @@ norm_cfg = None
 
 # yapf:enable
 # runtime settings
-work_dir = "../../data/CIA-SSD-ALL/"
+work_dir = "./save/KITTI/car"
 load_from = None
 resume_from = None
 total_epochs = 100
@@ -161,6 +161,7 @@ db_sampler = dict(
     global_random_rotation_range_per_object=[0, 0],
     rate=1.0,
 )
+
 train_preprocessor = dict(
     mode="train",
     shuffle_points=True,
@@ -202,6 +203,7 @@ train_pipeline = [
     dict(type="Reformat"),
     # dict(type='PointCloudCollect', keys=['points', 'voxels', 'annotations', 'calib']),
 ]
+
 test_pipeline = [
     dict(type="LoadPointCloudFromFile"),
     dict(type="LoadPointCloudAnnotations", with_bbox=True),
@@ -212,8 +214,8 @@ test_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=4, # default 6
-    workers_per_gpu=2, # default 6
+    samples_per_gpu=4,
+    workers_per_gpu=2,
     train=dict(
         type="KittiDataset",
         root_path=data_root,

@@ -1,6 +1,6 @@
 ## CIA-SSD: Updated version
 
-Currently state-of-the-art single-stage object detector from point cloud on KITTI Benchmark, running with 32FPS.
+Currently state-of-the-art single-stage object detector from point cloud on KITTI Benchmark, running with 32FPS. This version aims to be easier to setup and develop further than the original.
 
 ## Pipeline
 ![pipeline](images/pipeline.png)
@@ -9,15 +9,16 @@ For more detailed information, please refer this [white paper](https://arxiv.org
 
 ## Installation
 
-Download CIA-SSD with [Det3D](https://github.com/INSTALLATION.md) and [spconv](https://github.com/traveller59/spconv).
+Download CIA-SSD with [Det3D](https://github.com/poodarchu/Det3D) and [spconv](https://github.com/traveller59/spconv).
 ```bash
 $ git clone --recursive git@github.com:Otteri/CIA-SSD.git
 ```
 
-It is recommended to use conda. Create and activate isolated environment named py38:
+It is recommended to use conda. Create and activate isolated environment named cia-ssd:
 ```bash
-$ conda env create --file=environment.yml
-$ conda activate py38
+$ cd CIA-SSD
+$ conda env create --file=environment-cudaXX.yml
+$ conda activate cia-ssd
 ```
 
 Install spconv:
@@ -31,24 +32,25 @@ Install Det3D:
 ```bash
  $ cd Det3D && python setup.py develop
 ```
-Now you are ready to run the model.
+Now you are ready to run the model!
 
 ### Getting training data
 
-Data is needed for training. Please, refer Det3D [data preparation guide](https://github.com/Otteri/Det3D/blob/master/GETTING_STARTED.md). Let's consider KITTI dataset. Download the [KITTI data](http://www.cvlibs.net/datasets/kitti/eval_object.php?obj_benchmark=3d) and order it as guided. Because Det3D makes path assumptions, it is recommended to place data into: `/data/Datasets/KITTI/`. (*Then download plane data from internet*). After this, we can use Det3D scripts to prepare data for us:
+Data is needed for training. Please, refer Det3D [data preparation guide](https://github.com/Otteri/Det3D/blob/master/GETTING_STARTED.md). Let's consider KITTI dataset. Download the [KITTI data](http://www.cvlibs.net/datasets/kitti/eval_object.php?obj_benchmark=3d) and order it as guided. You need to also download [plane files](https://github.com/sshaoshuai/PointRCNN/issues/12) for training. After this, we can use Det3D scripts to prepare data for us:
 
 ```bash
 # Provide absolute path, not relative
 python Det3D/tools/create_data.py kitti_data_prep --root_path="<KITTI_DATASET_ROOT>"
 ```
-After data preparation, you may want to check that the model configurations are appropriate inside `configs` folder.
+After data preparation, you may want to check that the model configurations are appropriate inside `configs` folder. Update paths in `kitti_paths.py` to match your system.
+
 ### Training & Evaluation
 Now you should be able to train the model (single GPU):
-```
+```bash
 python Det3D/tools/train.py configs/<config-file>
 ```
 Evaluation scores will be printed when training finishes. However, you can also evaluate the model whenever you like with:
-```
+```bash
 python Det3D/tools/test.py <config> <checkpoint>
 ```
 
@@ -58,14 +60,15 @@ You need a GPU with over 4GB memory. (With 4GB you might be able to train with b
 ## Acknowledgements
 - [CIA-SSD](https://github.com/Vegeta2020/CIA-SSD)
 - [Det3D](https://github.com/poodarchu/Det3D)
-- spconv
-- KITTI
+- [spconv](https://github.com/traveller59/spconv)
+- [KITTI](http://www.cvlibs.net/datasets/kitti/)
 
 ## License
 This codebase is released under the Apache 2.0 license.
 
 ## FAQ
+```
+Q: RuntimeError: CUDA out of memory. Tried to allocate 18.00 MiB (GPU 0; 3.82 GiB total capacity; 799.32 MiB already allocated; 42.81 MiB free; 848.00 MiB reserved in total by PyTorch)
 
-RuntimeError: CUDA out of memory. Tried to allocate 18.00 MiB (GPU 0; 3.82 GiB total capacity; 799.32 MiB already allocated; 42.81 MiB free; 848.00 MiB reserved in total by PyTorch)
-
-Reduce memory consumption somehow. You may try setting smaller batch number from config.
+A: Reduce memory consumption or get more memory. You may try setting smaller batch number from config.
+```

@@ -11,7 +11,7 @@ class_names = list(itertools.chain(*[t["class_names"] for t in tasks]))
 box_coder = dict(type="ground_box3d_coder", n_dim=7, linear_dim=False, encode_angle_vector=False,)
 
 # runtime settings
-work_dir = "data/CIA-SSD-CAR/"
+work_dir = "./save/KITTI/car"
 load_from = None
 resume_from = None
 total_epochs = 60
@@ -113,9 +113,11 @@ db_sampler = dict(
     global_random_rotation_range_per_object=[0, 0],
     rate=1.0,
     gt_random_drop=-1,
+    gt_aug_enabled=True,
     gt_aug_with_context=-1,
     gt_aug_similar_type=False,
 )
+
 train_preprocessor = dict(
     mode="train",
     shuffle_points=True,
@@ -174,8 +176,8 @@ test_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=1,  # batch size, default 4
-    workers_per_gpu=1,  # default: 2
+    samples_per_gpu=4,  # batch size, default 4
+    workers_per_gpu=2,  # default: 2
     train=dict(
         type="KittiDataset",
         root_path=data_root,
@@ -199,7 +201,6 @@ data = dict(
     ),
 )
 
-# optimizer
 optimizer = dict(
     TYPE="adam",
     VALUE=dict(amsgrad=0.0, wd=0.01),
