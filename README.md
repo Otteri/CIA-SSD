@@ -9,8 +9,7 @@ For more detailed information, please refer this [white paper](https://arxiv.org
 
 ## Installation
 
-Download CIA-SSD with [Det3D](https://github
-NSTALLATION.md) and [spconv](https://github.com/traveller59/spconv):
+Download CIA-SSD with [Det3D](https://github.com/INSTALLATION.md) and [spconv](https://github.com/traveller59/spconv).
 ```bash
 $ git clone --recursive git@github.com:Otteri/CIA-SSD.git
 ```
@@ -36,14 +35,13 @@ Now you are ready to run the model.
 
 ### Getting training data
 
-We need data for training. Please, refer Det3D [data preparation guide](https://github.com/Otteri/Det3D/blob/master/GETTING_STARTED.md). Let's consider KITTI dataset. Download the [KITTI data](http://www.cvlibs.net/datasets/kitti/eval_object.php?obj_benchmark=3d) and order it as guided. Because Det3D makes path assumptions, it is recommended to place data into: `data/Datasets/KITTI/`. *Then download plane data from internet*. After this, we can use Det3D scripts to prepare the data for us:
+Data is needed for training. Please, refer Det3D [data preparation guide](https://github.com/Otteri/Det3D/blob/master/GETTING_STARTED.md). Let's consider KITTI dataset. Download the [KITTI data](http://www.cvlibs.net/datasets/kitti/eval_object.php?obj_benchmark=3d) and order it as guided. Because Det3D makes path assumptions, it is recommended to place data into: `/data/Datasets/KITTI/`. (*Then download plane data from internet*). After this, we can use Det3D scripts to prepare data for us:
 
 ```bash
-python Det3D/tools/create_data.py kitti_data_prep --root_path="<KITTI_DATASET_ROOT>"
 # Provide absolute path, not relative
+python Det3D/tools/create_data.py kitti_data_prep --root_path="<KITTI_DATASET_ROOT>"
 ```
-After data preparation, you may want to check that the model configuration is okay:
-`examples/second/configs/kitti_car_vfev3_spmiddlefhd_rpn1_mghead_syncbn.py`
+After data preparation, you may want to check that the model configurations are appropriate inside `configs` folder.
 ### Training & Evaluation
 Now you should be able to train the model (single GPU):
 ```
@@ -55,11 +53,13 @@ python Det3D/tools/test.py <config> <checkpoint>
 ```
 
 ## System requirements
-You need a GPU with over 4GB memory. (With 4GB you might be able to train with batch size of 1 and closing all GUI applications).
+You need a GPU with over 4GB memory. (With 4GB you might be able to train with batch size of 1 and closing all GUI applications). The code has been tested only on Ubuntu.
 
 ## Acknowledgements
 - [CIA-SSD](https://github.com/Vegeta2020/CIA-SSD)
 - [Det3D](https://github.com/poodarchu/Det3D)
+- spconv
+- KITTI
 
 ## License
 This codebase is released under the Apache 2.0 license.
@@ -68,4 +68,4 @@ This codebase is released under the Apache 2.0 license.
 
 RuntimeError: CUDA out of memory. Tried to allocate 18.00 MiB (GPU 0; 3.82 GiB total capacity; 799.32 MiB already allocated; 42.81 MiB free; 848.00 MiB reserved in total by PyTorch)
 
-Reduce memory consumption e.g. by setting smaller batch number from config.
+Reduce memory consumption somehow. You may try setting smaller batch number from config.
