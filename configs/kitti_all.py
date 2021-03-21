@@ -3,9 +3,22 @@ import logging
 
 from det3d.builder import build_box_coder
 from det3d.utils.config_tool import get_downsample_factor
+from kitti_paths import *
 
 # norm_cfg = dict(type='SyncBN', eps=1e-3, momentum=0.01)
 norm_cfg = None
+
+# yapf:enable
+# runtime settings
+work_dir = "../../data/CIA-SSD-ALL/"
+load_from = None
+resume_from = None
+total_epochs = 100
+workflow = [("train", 5), ("val", 1)]
+dist_params = dict(backend="nccl", init_method="env://")
+log_level = "INFO"
+#device_ids = range(8)
+
 
 tasks = [
     dict(num_class=1, class_names=["Car"]),
@@ -136,10 +149,6 @@ test_cfg = dict(
     max_per_img=100,
 )
 
-# dataset settings
-dataset_type = "KittiDataset"
-data_root = "/home/cosmo/data/KITTI_DATASET"
-
 db_sampler = dict(
     type="GT-AUG",
     enable=True,
@@ -202,15 +211,11 @@ test_pipeline = [
     dict(type="Reformat"),
 ]
 
-train_anno = data_root + "/kitti_infos_train.pkl"
-val_anno = data_root + "/kitti_infos_val.pkl"
-test_anno = None
-
 data = dict(
     samples_per_gpu=4, # default 6
     workers_per_gpu=2, # default 6
     train=dict(
-        type=dataset_type,
+        type="KittiDataset",
         root_path=data_root,
         info_path=data_root + "/kitti_infos_train.pkl",
         ann_file=train_anno,
@@ -218,7 +223,7 @@ data = dict(
         pipeline=train_pipeline,
     ),
     val=dict(
-        type=dataset_type,
+        type="KittiDataset",
         root_path=data_root,
         info_path=data_root + "/kitti_infos_val.pkl",
         ann_file=val_anno,
@@ -226,7 +231,7 @@ data = dict(
         pipeline=test_pipeline,
     ),
     test=dict(
-        type=dataset_type,
+        type="KittiDataset",
         root_path=data_root,
         info_path=test_anno,
         ann_file=test_anno,
@@ -258,13 +263,3 @@ log_config = dict(
         # dict(type='TensorboardLoggerHook')
     ],
 )
-# yapf:enable
-# runtime settings
-total_epochs = 100
-device_ids = range(8)
-dist_params = dict(backend="nccl", init_method="env://")
-log_level = "INFO"
-work_dir = "../../data/CIA-SSD-ALL/"
-load_from = None
-resume_from = None
-workflow = [("train", 5), ("val", 1)]

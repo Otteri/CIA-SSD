@@ -3,33 +3,22 @@ import logging
 from pathlib import Path
 from det3d.builder import build_box_coder
 from det3d.utils.config_tool import get_downsample_factor
+from kitti_paths import *
 
-data_root_prefix = "/home/cosmo/data/KITTI_DATASET"
 norm_cfg = None
 tasks = [dict(num_class=1, class_names=["Car"],),]
 class_names = list(itertools.chain(*[t["class_names"] for t in tasks]))
 box_coder = dict(type="ground_box3d_coder", n_dim=7, linear_dim=False, encode_angle_vector=False,)
 
-
-
-
-TAG = 'exp_test'
-
-my_paras = dict(
-    batch_size=4,
-
-    # discarded
-    enable_difficulty_level=False,
-    remove_difficulty_points=False,  # act with neccessary condition: enable_difficulty_level=True.
-    gt_random_drop=-1,
-    data_aug_random_drop=-1,
-    far_points_first=False,
-    data_aug_with_context=-1,        # enlarged size for w and l in data aug.
-    gt_aug_with_context=-1,
-    gt_aug_similar_type=False,
-    min_points_in_gt=-1,
-    loss_iou=None, #dict(type="IoU3DLoss", iou_type='iou_bev', offset=1.0, eps=1e-6, loss_weight=1.0),
-)
+# runtime settings
+work_dir = "data/CIA-SSD-CAR/"
+load_from = None
+resume_from = None
+total_epochs = 60
+workflow = [("train", 60), ("val", 1)]  # todo: only length of workflow has been used
+dist_params = dict(backend="nccl", init_method="env://")
+log_level = "INFO"
+#save_file = False if TAG == "debug" or TAG == "exp_debug" or Path(work_dir, "Det3D").is_dir() else True
 
 # model settings
 model = dict(
@@ -65,7 +54,7 @@ model = dict(
         encode_rad_error_by_sin=True,
         loss_aux=dict(type="WeightedSoftmaxClassificationLoss", name="direction_classifier", loss_weight=0.2,),
         direction_offset=0.0,
-        #loss_iou=my_paras['loss_iou'],
+        #loss_iou=None,
     ),
 )
 
@@ -97,7 +86,6 @@ assigner = dict(
     enable_similar_type=True,
 )
 
-
 train_cfg = dict(assigner=assigner)
 
 test_cfg = dict(
@@ -113,13 +101,10 @@ test_cfg = dict(
     max_per_img=100,
 )
 
-# dataset settings
-dataset_type = "KittiDataset"
-
 db_sampler = dict(
     type="GT-AUG",
     enable=True,
-    db_info_path=data_root_prefix + "/dbinfos_train.pkl",
+    db_info_path=db_info_path,
     sample_groups=[dict(Car=15,),],
     db_prep_steps=[
         dict(filter_by_min_num_points=dict(Car=5,)),
@@ -127,9 +112,9 @@ db_sampler = dict(
     ],
     global_random_rotation_range_per_object=[0, 0],
     rate=1.0,
-    gt_random_drop=my_paras['gt_random_drop'],
-    gt_aug_with_context=my_paras['gt_aug_with_context'],
-    gt_aug_similar_type=my_paras['gt_aug_similar_type'],
+    gt_random_drop=-1,
+    gt_aug_with_context=-1,
+    gt_aug_similar_type=False,
 )
 train_preprocessor = dict(
     mode="train",
@@ -144,14 +129,14 @@ train_preprocessor = dict(
     gt_drop_percentage=0.0,
     gt_drop_max_keep_points=15,
     remove_environment=False,
-    remove_unknown_examples=my_paras.get("remove_difficulty_points", False),
+    remove_unknown_examples=False,
     db_sampler=db_sampler,
     class_names=class_names,   # 'Car'
     symmetry_intensity=False,
     enable_similar_type=True,
-    min_points_in_gt=my_paras["min_points_in_gt"],
-    data_aug_with_context=my_paras["data_aug_with_context"],
-    data_aug_random_drop=my_paras["data_aug_random_drop"],
+    min_points_in_gt=-1,
+    data_aug_with_context=-1,
+    data_aug_random_drop=-1,
 )
 
 val_preprocessor = dict(
@@ -166,18 +151,19 @@ voxel_generator = dict(
     voxel_size=[0.05, 0.05, 0.1],
     max_points_in_voxel=5,
     max_voxel_num=20000,
-    far_points_first=my_paras['far_points_first'],
+    far_points_first=False,
 )
 
 train_pipeline = [
     dict(type="LoadPointCloudFromFile"),
-    dict(type="LoadPointCloudAnnotations", with_bbox=True, enable_difficulty_level=my_paras.get("enable_difficulty_level", False)),
+    dict(type="LoadPointCloudAnnotations", with_bbox=True, enable_difficulty_level=False),
     dict(type="Preprocess", cfg=train_preprocessor),
     dict(type="Voxelization", cfg=voxel_generator),
     dict(type="AssignTarget", cfg=train_cfg["assigner"]),
     dict(type="Reformat"),
     # dict(type='PointCloudCollect', keys=['points', 'voxels', 'annotations', 'calib']),
 ]
+
 test_pipeline = [
     dict(type="LoadPointCloudFromFile"),
     dict(type="LoadPointCloudAnnotations", with_bbox=True),
@@ -187,31 +173,25 @@ test_pipeline = [
     dict(type="Reformat"),
 ]
 
-
-data_root = data_root_prefix
-train_anno = data_root_prefix + "/kitti_infos_train.pkl"
-val_anno = data_root_prefix + "/kitti_infos_val.pkl"
-test_anno = data_root_prefix + "/kitti_infos_test.pkl"
-
 data = dict(
-    samples_per_gpu=4,  # batch size, default 4
-    workers_per_gpu=2,  # default: 2
+    samples_per_gpu=1,  # batch size, default 4
+    workers_per_gpu=1,  # default: 2
     train=dict(
-        type=dataset_type,
+        type="KittiDataset",
         root_path=data_root,
         info_path=train_anno,
         class_names=class_names,
         pipeline=train_pipeline,
     ),
     val=dict(
-        type=dataset_type,
+        type="KittiDataset",
         root_path=data_root,
         info_path=val_anno,
         class_names=class_names,
         pipeline=test_pipeline,
     ),
     test=dict(
-        type=dataset_type,
+        type="KittiDataset",
         root_path=data_root,
         info_path=test_anno,
         class_names=class_names,
@@ -220,7 +200,6 @@ data = dict(
 )
 
 # optimizer
-#optimizer = dict(type="adam", amsgrad=0.0, wd=0.01, fixed_wd=True, moving_average=False,)
 optimizer = dict(
     TYPE="adam",
     VALUE=dict(amsgrad=0.0, wd=0.01),
@@ -232,16 +211,4 @@ optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 lr_config = dict(type="one_cycle", lr_max=0.003, moms=[0.95, 0.85], div_factor=10.0, pct_start=0.4,)  # learning policy in training hooks
 
 checkpoint_config = dict(interval=1)
-log_config = dict(interval=10,hooks=[dict(type="TextLoggerHook"),],) # dict(type='TensorboardLoggerHook')
-
-# runtime settings
-total_epochs = 60
-#device_ids = range(8)
-dist_params = dict(backend="nccl", init_method="env://")
-log_level = "INFO"
-work_dir = "data/CIA-SSD-CAR/"
-load_from = None
-resume_from = None
-workflow = [("train", 60), ("val", 1)]  # todo: only length of workflow has been used
-#save_file = False if TAG == "debug" or TAG == "exp_debug" or Path(work_dir, "Det3D").is_dir() else True
-
+log_config = dict(interval=10, hooks=[dict(type="TextLoggerHook"),],) # dict(type='TensorboardLoggerHook')
