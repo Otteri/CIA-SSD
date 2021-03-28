@@ -2,6 +2,11 @@
 
 Currently state-of-the-art single-stage object detector from point cloud on KITTI Benchmark, running with 32FPS. This version aims to be easier to setup and develop further than the original.
 
+<p float="left">
+  <img src="./images/cia-ssd1.png" width="49%" />
+  <img src="./images/cia-ssd2.png" width="47%" /> 
+</p>
+
 ## Pipeline
 ![pipeline](images/pipeline.png)
 First, input point cloud (a) is encoded with a sparse convolutional network denoted by SPConvNet (b). Then,spatial-semantic feature aggregation (SSFA) module (c) fuses the extracted spatial and semantic features using attentional fusion module (d). After this, confidence function is used for realizing object classification and localization in multi-task head (e). Finally, the distance-variant IoU-weighted NMS (DI-NMS) is formulated for post-processing.
