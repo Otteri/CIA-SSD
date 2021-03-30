@@ -67,7 +67,6 @@ dependencies:
   - six=1.15.0=py38h06a4308_0
   - sqlite=3.33.0=h62c20be_0
   - tk=8.6.10=hbc83047_0
-  #- torchaudio=0.7.2=py38
   - torchvision=0.8.2=py38_cu102
   - traitlets=5.0.5=py_0
   - typing_extensions=3.7.4.3=pyha847dfd_0
@@ -92,7 +91,6 @@ dependencies:
     - cython==0.29.22
     - defusedxml==0.7.1
     - descartes==1.1.0
-    #- det3d==1.0rc0+c7279d4
     - easydict==1.9
     - entrypoints==0.3
     - fire==0.4.0
@@ -150,7 +148,6 @@ dependencies:
     - pyrsistent==0.17.3
     - pytest==6.2.2
     - pytest-benchmark==3.2.3
-    #- python-graphviz==0.16
     - pytz==2021.1
     - pywavelets==1.1.1
     - pyzmq==22.0.3
@@ -177,4 +174,3 @@ dependencies:
     - webencodings==0.5.1
     - widgetsnbextension==3.5.1
     - xmltodict==0.12.0
-prefix: /home/joni/anaconda3/envs/py38
