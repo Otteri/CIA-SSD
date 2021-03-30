@@ -117,23 +117,23 @@ def plot_image(ax, example, training=True):
     img = plt.imread(image_file)
     ax.imshow(img)
 
-def draw_annotations(ax, example, annotations_num, show_label=False):
+def draw_annotations(ax, example, annotations_num, show_label=True):
     """
     Draws annotated bounding boxes.
     Params:
         ax: axis where boxes will be drawn
         example: dict that contains annotated data
         annotations_num: number of annotations (number of boxes)
+        show_label: should annotation class be shown in visualization?
     """
     for n in range(annotations_num):
         anno = example['annos'][n]
         for q, category in enumerate(anno['names']):
-            if (category == 'Car'):
-                x, y, z, w, l, h, r = example['annos'][n]['boxes'][q]
-                drawBoundingBoxes(ax, x, y, z, w, l, h, r, col='red')
+            x, y, z, w, l, h, r = example['annos'][n]['boxes'][q]
+            drawBoundingBoxes(ax, x, y, z, w, l, h, r, col='red')
 
-                if show_label:
-                    ax.text(x, y, z+h, f"{category}", color='r', fontsize=8.0, rotation=math.degrees(r))
+            if show_label:
+                ax.text(x, y, z+h, f"{category}", color='r', fontsize=8.0, rotation=math.degrees(r))
 
 def draw_predictions(ax, outputs):
     """
@@ -148,7 +148,7 @@ def draw_predictions(ax, outputs):
         classes = output['label_preds'].cpu().detach().numpy()
         class_txts = at(class_to_name, *classes)
         for k, box3d in enumerate(boxes):
-            x, y, z, w, l, h, r = box3d # in zip(box3d):
+            x, y, z, w, l, h, r = box3d
             drawBoundingBoxes(ax, x, y, z, w, l, h, r, col='green', linewidth=0.8)
             ax.text(x+(w/2.0)+1, y+(l/2.0)+2, z+h, f"{class_txts[k]}<{confidences[k]:.2f}>", color=(0.4, 0.95, 0.3), fontsize=8.0, rotation=math.degrees(r))
 

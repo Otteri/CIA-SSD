@@ -1,11 +1,8 @@
 ## CIA-SSD: Updated version
 
-Currently state-of-the-art single-stage object detector from point cloud on KITTI Benchmark, running with 32FPS. This version aims to be easier to setup and develop further than the original.
-
-<p float="left">
-  <img src="./images/cia-ssd1.png" width="49%" />
-  <img src="./images/cia-ssd2.png" width="47%" /> 
-</p>
+Updated version of leading single-stage lidar detector in KITTI Benchmark. This version aims to be easier to setup and develop further than the original. Example detections (~12h training with RTX 2080 8GB):
+![example image](./images/detections.png)  
+Green boxes are predictions made by the model and red boxes represent ground truth (annotations).
 
 ## Pipeline
 ![pipeline](images/pipeline.png)
